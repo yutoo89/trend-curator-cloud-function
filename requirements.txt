@@ -1,1 +1,4 @@
 functions-framework==3.*
+cloudevents
+google-events
+googleapis-common-protos

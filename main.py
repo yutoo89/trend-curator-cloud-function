@@ -1,26 +1,22 @@
+from cloudevents.http import CloudEvent
 import functions_framework
+from google.events.cloud import firestore
 
 
-from markupsafe import escape
+@functions_framework.cloud_event
+def hello_firestore(cloud_event: CloudEvent) -> None:
+    """Triggers by a change to a Firestore document.
 
-@functions_framework.http
-def trend_curator_http(request):
-    """HTTP Cloud Function.
     Args:
-        request (flask.Request): The request object.
-        <https://flask.palletsprojects.com/en/1.1.x/api/#incoming-request-data>
-    Returns:
-        The response text, or any set of values that can be turned into a
-        Response object using `make_response`
-        <https://flask.palletsprojects.com/en/1.1.x/api/#flask.make_response>.
+        cloud_event: cloud event with information on the firestore event trigger
     """
-    request_json = request.get_json(silent=True)
-    request_args = request.args
+    firestore_payload = firestore.DocumentEventData()
+    firestore_payload._pb.ParseFromString(cloud_event.data)
 
-    if request_json and "name" in request_json:
-        name = request_json["name"]
-    elif request_args and "name" in request_args:
-        name = request_args["name"]
-    else:
-        name = "World"
-    return f"Hello {escape(name)}!"
+    print(f"Function triggered by change to: {cloud_event['source']}")
+
+    print("\nOld value:")
+    print(firestore_payload.old_value)
+
+    print("\nNew value:")
+    print(firestore_payload.value)
