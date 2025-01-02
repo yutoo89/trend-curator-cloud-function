@@ -20,3 +20,6 @@ def hello_firestore(cloud_event: CloudEvent) -> None:
 
     print("\nNew value:")
     print(firestore_payload.value)
+
+    cur_value = firestore_payload.value.fields["topic"].string_value
+    print(f"topic: {cur_value}")
