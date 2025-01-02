@@ -4,7 +4,7 @@ import functions_framework
 from markupsafe import escape
 
 @functions_framework.http
-def hello_http(request):
+def trend_curator_http(request):
     """HTTP Cloud Function.
     Args:
         request (flask.Request): The request object.
