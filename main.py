@@ -1,59 +1,21 @@
+import os
+import json
 from cloudevents.http import CloudEvent
 import functions_framework
 from google.events.cloud import firestore as firestore_event
 import firebase_admin
-from firebase_admin import credentials, firestore
-import os
+from firebase_admin import firestore
 import google.generativeai as genai
-import typing_extensions as typing
-import json
 from datetime import datetime, timezone
+from corrector import GeminiTextCorrector
 
-
-print("initialize GenAI client")
+# GenAI 初期化
 genai.configure(api_key=os.environ["GENAI_API_KEY"])
 
-print("No explicit SERVICE_ACCOUNT_KEY is used. We'll rely on default credentials.")
-
+# Firestore 初期化
 if not firebase_admin._apps:
-    print("initialize_app with default credentials")
     firebase_admin.initialize_app()
-
-print("initialize firestore client")
 db = firestore.client()
-
-
-class CorrectorResult(typing.TypedDict):
-    original_text: str
-    transformed_text: str
-
-
-class GeminiTextCorrector:
-    def __init__(self, model_name: str):
-        self.model = genai.GenerativeModel(model_name)
-
-    def create_prompt(self, input_text: str) -> str:
-        lines = [
-            f"音声認識で「{input_text}」というテキストが得られました。",
-            "このテキストは誤字や欠損がある可能性があるので、元の単語を推測して広く知られる正しい表記に変換してください。",
-            "テキストに誤りがない場合はそのままの形で出力してください。",
-            "例:",
-            "- input: `生成 エーアイ`",
-            "- output: `生成AI`",
-        ]
-        return "\n".join(lines)
-
-    def run(self, input_text: str) -> str:
-        prompt = self.create_prompt(input_text)
-        response = self.model.generate_content(
-            prompt,
-            generation_config=genai.GenerationConfig(
-                response_mime_type="application/json",
-                response_schema=list[CorrectorResult],
-            ),
-        )
-
-        return json.loads(response.text)[0]["transformed_text"]
 
 
 @functions_framework.cloud_event
