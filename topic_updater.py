@@ -9,7 +9,8 @@ class TopicUpdater:
         self.raw_topic = raw_topic
         self.corrector = GeminiTextCorrector("gemini-1.5-flash")
 
-    def run(self) -> None:
+    def run(self) -> str:
         topic = self.corrector.run(self.raw_topic)
         doc_ref = self.db.collection("topics").document(self.user_id)
         doc_ref.update({"topic": topic})
+        return topic

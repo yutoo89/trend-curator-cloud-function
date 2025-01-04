@@ -7,6 +7,7 @@ import firebase_admin
 from firebase_admin import firestore
 import google.generativeai as genai
 from topic_updater import TopicUpdater
+from trend_updater import TrendUpdater
 from access_updater import AccessUpdater
 
 # GenAI 初期化
@@ -39,7 +40,11 @@ def on_topic_created(cloud_event: CloudEvent) -> None:
 
     # 1. raw_topicをLLMで整形してtopicに書き込む
     raw_topic = doc_event_data.value.fields["raw_topic"].string_value
-    TopicUpdater(db, user_id, raw_topic).run()
+    topic = TopicUpdater(db, user_id, raw_topic).run()
 
     # 2. accessessを更新
     AccessUpdater(db, user_id).run()
+
+    # 3. trendsを更新
+    TrendUpdater(db, user_id, topic).run()
+    print(f"Trend updated for user: {user_id}")

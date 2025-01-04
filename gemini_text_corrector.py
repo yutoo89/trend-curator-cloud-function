@@ -3,9 +3,14 @@ import google.generativeai as genai
 import typing_extensions as typing
 
 
-class CorrectorResult(typing.TypedDict):
-    original_text: str
-    transformed_text: str
+RESPONSE_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "original_text": {"type": "STRING"},
+        "transformed_text": {"type": "STRING"},
+    },
+    "required": ["original_text", "transformed_text"],
+}
 
 
 class GeminiTextCorrector:
@@ -29,7 +34,8 @@ class GeminiTextCorrector:
             prompt,
             generation_config=genai.GenerationConfig(
                 response_mime_type="application/json",
-                response_schema=list[CorrectorResult],
+                response_schema=RESPONSE_SCHEMA,
             ),
         )
-        return json.loads(response.text)[0]["transformed_text"]
+        parsed_result = json.loads(response.text)
+        return parsed_result["transformed_text"]
