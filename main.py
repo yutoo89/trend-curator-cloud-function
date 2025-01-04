@@ -6,8 +6,8 @@ from google.events.cloud import firestore as firestore_event
 import firebase_admin
 from firebase_admin import firestore
 import google.generativeai as genai
-from datetime import datetime, timezone
-from corrector import GeminiTextCorrector
+from topic_updater import TopicUpdater
+from access_updater import AccessUpdater
 
 # GenAI 初期化
 genai.configure(api_key=os.environ["GENAI_API_KEY"])
@@ -22,7 +22,6 @@ db = firestore.client()
 def on_topic_created(cloud_event: CloudEvent) -> None:
     """
     topicsコレクションに新規ドキュメントが追加された時に実行
-    1. raw_topicをLLMで整形してtopicに書き込む
     """
     print(f"Triggered by creation of a document: {cloud_event['source']}")
 
@@ -34,14 +33,13 @@ def on_topic_created(cloud_event: CloudEvent) -> None:
     )  # "projects/<PROJ>/databases/(default)/documents/topics/<user_id>"
     user_id = doc_path.split("/")[-1]
 
-    if "raw_topic" in doc_event_data.value.fields:
-        raw_topic = doc_event_data.value.fields["raw_topic"].string_value
-        corrector = GeminiTextCorrector("gemini-1.5-flash")
-        topic = corrector.run(raw_topic)
-
-        print(f"user_id: {user_id}, raw_topic: {raw_topic} => topic: {topic}")
-
-        doc_ref = db.collection("topics").document(user_id)
-        doc_ref.update({"topic": topic})
-    else:
+    if "raw_topic" not in doc_event_data.value.fields:
         print(f"No 'raw_topic' field found in document: {user_id}")
+        return
+
+    # 1. raw_topicをLLMで整形してtopicに書き込む
+    raw_topic = doc_event_data.value.fields["raw_topic"].string_value
+    TopicUpdater(db, user_id, raw_topic).run()
+
+    # 2. accessessを更新
+    AccessUpdater(db, user_id).run()
