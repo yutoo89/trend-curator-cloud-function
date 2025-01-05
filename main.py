@@ -6,8 +6,8 @@ from google.events.cloud import firestore as firestore_event
 import firebase_admin
 from firebase_admin import firestore
 import google.generativeai as genai
-from topic_updater import TopicUpdater
-from trend_updater import TrendUpdater
+from topic import Topic
+from trend import Trend
 from access_updater import AccessUpdater
 
 # GenAI 初期化
@@ -40,11 +40,12 @@ def on_topic_created(cloud_event: CloudEvent) -> None:
 
     # 1. raw_topicをLLMで整形してtopicに書き込む
     raw_topic = doc_event_data.value.fields["raw_topic"].string_value
-    topic = TopicUpdater(db, user_id, raw_topic).run()
+    locale = doc_event_data.value.fields["locale"].string_value
+    topic = Topic.update(db, user_id, raw_topic, locale)
 
     # 2. accessessを更新
     AccessUpdater(db, user_id).run()
 
     # 3. trendsを更新
-    TrendUpdater(db, user_id, topic).run()
+    Trend.update(db, user_id, topic.topic, topic.language_code, topic.region_code)
     print(f"Trend updated for user: {user_id}")
