@@ -28,3 +28,13 @@ class Topic:
         })
 
         return Topic(user_id, raw_topic, corrected_topic, language_code, region_code)
+
+    @staticmethod
+    def update_exclude_keywords(db: firestore.Client, user_id: str, exclude_keywords: list[str]) -> None:
+        if not isinstance(exclude_keywords, list) or not all(isinstance(k, str) for k in exclude_keywords):
+            raise ValueError("exclude_keywords must be a list of strings.")
+
+        doc_ref = db.collection("topics").document(user_id)
+        doc_ref.update({
+            "exclude_keywords": exclude_keywords,
+        })

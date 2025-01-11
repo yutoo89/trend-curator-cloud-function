@@ -13,7 +13,8 @@
 # below:
 .git
 .gitignore
-
+.venv
+.envrc
 
 node_modules
 #!include:.gitignore

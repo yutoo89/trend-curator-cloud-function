@@ -4,3 +4,5 @@ google-events
 googleapis-common-protos
 google-generativeai
 firebase-admin
+google-api-python-client
+beautifulsoup4

@@ -1,5 +1,4 @@
 import os
-import json
 from cloudevents.http import CloudEvent
 import functions_framework
 from google.events.cloud import firestore as firestore_event
@@ -9,6 +8,7 @@ import google.generativeai as genai
 from topic import Topic
 from trend import Trend
 from access_updater import AccessUpdater
+from web_searcher import WebSearcher
 
 # GenAI 初期化
 genai.configure(api_key=os.environ["GENAI_API_KEY"])
@@ -17,6 +17,10 @@ genai.configure(api_key=os.environ["GENAI_API_KEY"])
 if not firebase_admin._apps:
     firebase_admin.initialize_app()
 db = firestore.client()
+
+# Google Custom Search
+google_custom_search_api_key = os.environ["GOOGLE_CUSTOM_SEARCH_API_KEY"]
+google_search_cse_id = os.environ["GOOGLE_SEARCH_CSE_ID"]
 
 
 @functions_framework.cloud_event
@@ -47,5 +51,21 @@ def on_topic_created(cloud_event: CloudEvent) -> None:
     AccessUpdater(db, user_id).run()
 
     # 3. trendsを更新
-    Trend.update(db, user_id, topic.topic, topic.language_code, topic.region_code)
+    exclude_keywords = []
+    if "exclude_keywords" in doc_event_data.value.fields:
+        exclude_keywords = [
+            kw.string_value
+            for kw in doc_event_data.value.fields["exclude_keywords"].array_value.values
+        ]
+
+    searcher = WebSearcher(google_custom_search_api_key, google_search_cse_id)
+    trend = Trend.update(
+        db,
+        user_id,
+        topic.topic,
+        topic.language_code,
+        searcher,
+        exclude_keywords,
+    )
+    Topic.update_exclude_keywords(db, user_id, trend.keywords)
     print(f"Trend updated for user: {user_id}")
