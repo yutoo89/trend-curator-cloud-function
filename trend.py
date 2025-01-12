@@ -8,11 +8,14 @@ from tip_generator import TipGenerator
 
 
 class Trend:
-    def __init__(self, user_id: str, title: str, body: str, keywords: list[str]):
+    def __init__(self, user_id: str, title: str, body: str, keywords: list[str], queries: list[str] = None):
+        if queries is None:
+            queries = []
         self.user_id = user_id
         self.title = title
         self.body = body
         self.keywords = keywords
+        self.queries = queries
 
     @staticmethod
     def update(
@@ -82,6 +85,7 @@ class Trend:
                 "title": selected_topic,
                 "body": manuscript,
                 "keywords": extracted_keywords,
+                "queries": related_keywords,
             },
             merge=True,
         )

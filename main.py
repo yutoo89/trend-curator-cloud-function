@@ -70,7 +70,7 @@ def on_topic_created(cloud_event: CloudEvent) -> None:
         searcher,
         exclude_keywords,
     )
-    Topic.update_exclude_keywords(db, user_id, trend.keywords)
+    Topic.update_keywords(db, user_id, trend.keywords, trend.queries)
 
 
 @functions_framework.cloud_event
@@ -113,4 +113,4 @@ def on_user_trend_update_started(cloud_event):
         searcher,
         topic.exclude_keywords,
     )
-    Topic.update_exclude_keywords(db, user_id, trend.keywords)
+    Topic.update_keywords(db, user_id, trend.keywords, trend.queries)
