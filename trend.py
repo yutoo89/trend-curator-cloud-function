@@ -5,6 +5,7 @@ from web_searcher import WebSearcher
 from trend_topic_selector import TrendTopicSelector
 from article_content_fetcher import ArticleContentFetcher
 from tip_generator import TipGenerator
+from topic import Topic
 
 
 class Trend:
@@ -21,21 +22,22 @@ class Trend:
     def update(
         db: firestore.Client,
         user_id: str,
-        topic: str,
-        language_code: str,
+        topic: Topic,
         searcher: WebSearcher,
-        exclude_keywords=None,
+        # language_code: str,
+        # exclude_keywords=None,
     ) -> Trend:
         print("[INFO] Trend.update - Start processing")
 
-        query = topic
-        if exclude_keywords is None:
-            exclude_keywords = []
+        query = topic.topic
+        language_code = topic.language_code
+        exclude_keywords = topic.exclude_keywords
+        exclude_queries = topic.queries
 
         # 関連キーワード生成
         print("[INFO] Generating related keywords - Start")
         keywords_generator = RelatedKeywordGenerator("gemini-1.5-flash")
-        related_keywords = keywords_generator.generate_keywords(query)
+        related_keywords = keywords_generator.generate_keywords(query, exclude_queries)
         print(f"[INFO] Generating related keywords - Done: {related_keywords}")
 
         # キーワードweb検索

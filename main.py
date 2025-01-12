@@ -65,10 +65,8 @@ def on_topic_created(cloud_event: CloudEvent) -> None:
     trend = Trend.update(
         db,
         user_id,
-        topic.topic,
-        topic.language_code,
+        topic,
         searcher,
-        exclude_keywords,
     )
     Topic.update_keywords(db, user_id, trend.keywords, trend.queries)
 
@@ -108,9 +106,7 @@ def on_user_trend_update_started(cloud_event):
     trend = Trend.update(
         db,
         user_id,
-        topic.topic,
-        topic.language_code,
+        topic,
         searcher,
-        topic.exclude_keywords,
     )
     Topic.update_keywords(db, user_id, trend.keywords, trend.queries)

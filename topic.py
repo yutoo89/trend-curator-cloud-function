@@ -12,15 +12,19 @@ class Topic:
         language_code: str,
         region_code: str,
         exclude_keywords: list[str] = None,
+        queries: list[str] = None,
     ):
         if exclude_keywords is None:
             exclude_keywords = []
+        if queries is None:
+            queries = []
         self.user_id = user_id
         self.raw_topic = raw_topic
         self.topic = topic
         self.language_code = language_code
         self.region_code = region_code
         self.exclude_keywords = exclude_keywords
+        self.queries = queries
 
     @staticmethod
     def find(db: firestore.Client, user_id: str) -> Topic:
@@ -32,6 +36,7 @@ class Topic:
             topic_data.get("language_code"),
             topic_data.get("region_code"),
             topic_data.get("exclude_keywords"),
+            topic_data.get("queries"),
         )
 
     @staticmethod
