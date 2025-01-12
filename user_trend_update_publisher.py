@@ -29,13 +29,25 @@ class UserTrendUpdatePublisher:
         access_interval = last_accessed - previous_accessed
         return last_accessed <= previous_accessed + access_interval
 
+    def publish(self, user_id: str):
+        """
+        Publishes a message to Pub/Sub for a given user ID.
+        """
+        message_data = {"user_id": user_id}
+        self.publisher.publish(
+            "projects/trend-curator/topics/user-trend-updates",
+            data=json.dumps(message_data).encode("utf-8"),
+        )
+        self.published_user_count += 1
+        print(f"[INFO] Message sent for user: {user_id}")
+
     def fetch_and_publish(self):
         print(f"[INFO] Publishing user-trend-update - Start")
         collection_ref = self.db.collection("accesses")
-        query = collection_ref.limit(self.batch_size)  # Initial batch query
-        last_doc = None  # Track the last document processed
+        query = collection_ref.limit(self.batch_size)
+        last_doc = None
         one_week_ago = datetime.now(timezone.utc) - timedelta(weeks=1)
-        published_user_count = 0
+        self.published_user_count = 0
 
         while True:
             if last_doc:
@@ -43,58 +55,50 @@ class UserTrendUpdatePublisher:
 
             docs = query.get()
             if not docs:
-                break  # Exit if no documents remain
+                break
 
             for doc in docs:
-                data = doc.to_dict()
-                last_accessed = data.get("last_accessed")
-                previous_accessed = data.get("previous_accessed")
+                try:
+                    data = doc.to_dict()
+                    user_id = doc.id
+                    last_accessed = data.get("last_accessed")
+                    previous_accessed = data.get("previous_accessed")
 
-                if last_accessed and previous_accessed:
-                    # Convert timestamps to datetime objects
-                    last_accessed_dt = datetime.fromisoformat(
-                        last_accessed.replace("Z", "+00:00")
-                    )
-                    previous_accessed_dt = datetime.fromisoformat(
-                        previous_accessed.replace("Z", "+00:00")
-                    )
-
-                    # Check conditions
-                    print(
-                        f"chack a:{self.is_recent_access(last_accessed_dt, one_week_ago)}"
-                    )
-                    print(
-                        f"chack b:{self.is_within_access_interval(last_accessed_dt, previous_accessed_dt)}"
-                    )
-                    if self.is_recent_access(
-                        last_accessed_dt, one_week_ago
-                    ) or self.is_within_access_interval(
-                        last_accessed_dt, previous_accessed_dt
-                    ):
-                        user_id = doc.id
-
-                        # メッセージ作成
-                        message_data = {
-                            "user_id": user_id,
-                        }
-                        # メッセージをPub/Subに送信
-                        self.publisher.publish(
-                            "projects/trend-curator/topics/user-trend-updates",
-                            data=json.dumps(message_data).encode("utf-8"),
+                    if not last_accessed and not previous_accessed:
+                        print(
+                            f"[DEBUG] Skipping user {user_id}: Missing both timestamps."
                         )
-                        published_user_count += 1
-                        print(f"Message sent for user: {user_id}")
+                        continue
 
-                else:
-                    print(
-                        f"Document ID: {doc.id} has missing 'last_accessed' or 'previous_accessed' fields."
-                    )
+                    if last_accessed:
+                        last_accessed_dt = datetime.fromisoformat(
+                            last_accessed.replace("Z", "+00:00")
+                        )
 
-            # Update last_doc for next batch
+                        # Check if recent access
+                        if self.is_recent_access(last_accessed_dt, one_week_ago):
+                            self.publish(user_id)
+                            continue
+
+                        # Check if within access interval
+                        if previous_accessed:
+                            previous_accessed_dt = datetime.fromisoformat(
+                                previous_accessed.replace("Z", "+00:00")
+                            )
+                            if self.is_within_access_interval(
+                                last_accessed_dt, previous_accessed_dt
+                            ):
+                                self.publish(user_id)
+                                continue
+
+                except Exception as e:
+                    print(f"[ERROR] Failed to process document {doc.id}: {e}")
+
             last_doc = docs[-1]
-
             if len(docs) < self.batch_size:
                 break
 
-        print(f"[INFO] Publishing user-trend-update - Done\npublished_user_count: {published_user_count}")
-        return published_user_count
+        print(
+            f"[INFO] Publishing user-trend-update - Done. Published user count: {self.published_user_count}"
+        )
+        return self.published_user_count
