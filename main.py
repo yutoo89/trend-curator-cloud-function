@@ -69,3 +69,38 @@ def on_topic_created(cloud_event: CloudEvent) -> None:
     )
     Topic.update_exclude_keywords(db, user_id, trend.keywords)
     print(f"Trend updated for user: {user_id}")
+
+
+@functions_framework.cloud_event
+def on_trend_update_started(cloud_event):
+    from user_trend_update_publisher import UserTrendUpdatePublisher
+    print(f"[INFO] Publishing user-trend-update - Start")
+    published_user_count = UserTrendUpdatePublisher().fetch_and_publish()
+    print(f"[INFO] Publishing user-trend-update - Done\npublished_user_count: {published_user_count}")
+
+
+@functions_framework.cloud_event
+def on_user_trend_update_started(cloud_event):
+    """
+    「ユーザトレンドの更新が開始したとき」に実行。
+    メッセージに含まれるユーザIDを基にニュースを作成。
+    """
+    import base64
+
+    # CloudEventデータを取得
+    pubsub_message = cloud_event.data
+    if "message" in pubsub_message and "data" in pubsub_message["message"]:
+        # メッセージデータをデコード
+        message_data = base64.b64decode(pubsub_message["message"]["data"]).decode("utf-8")
+        print(f"Received message: {message_data}")
+        
+        # ユーザIDを取得
+        import json
+        message_json = json.loads(message_data)
+        user_id = message_json.get("user_id", None)
+        if user_id:
+            print(f"Generating news for user: {user_id}")
+        else:
+            print("No user_id found in message.")
+    else:
+        print("Invalid Pub/Sub message format.")
