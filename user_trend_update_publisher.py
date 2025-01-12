@@ -30,9 +30,7 @@ class UserTrendUpdatePublisher:
         return last_accessed <= previous_accessed + access_interval
 
     def fetch_and_publish(self):
-        """
-        Fetches user access records and returns a list of user IDs requiring an update.
-        """
+        print(f"[INFO] Publishing user-trend-update - Start")
         collection_ref = self.db.collection("accesses")
         query = collection_ref.limit(self.batch_size)  # Initial batch query
         last_doc = None  # Track the last document processed
@@ -51,8 +49,6 @@ class UserTrendUpdatePublisher:
                 data = doc.to_dict()
                 last_accessed = data.get("last_accessed")
                 previous_accessed = data.get("previous_accessed")
-                print(f"last:{last_accessed}")
-                print(f"prev:{previous_accessed}")
 
                 if last_accessed and previous_accessed:
                     # Convert timestamps to datetime objects
@@ -76,7 +72,6 @@ class UserTrendUpdatePublisher:
                         last_accessed_dt, previous_accessed_dt
                     ):
                         user_id = doc.id
-                        print(f"Processing user: {user_id}")
 
                         # メッセージ作成
                         message_data = {
@@ -101,4 +96,5 @@ class UserTrendUpdatePublisher:
             if len(docs) < self.batch_size:
                 break
 
+        print(f"[INFO] Publishing user-trend-update - Done\npublished_user_count: {published_user_count}")
         return published_user_count

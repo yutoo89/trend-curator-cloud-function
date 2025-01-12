@@ -68,15 +68,12 @@ def on_topic_created(cloud_event: CloudEvent) -> None:
         exclude_keywords,
     )
     Topic.update_exclude_keywords(db, user_id, trend.keywords)
-    print(f"Trend updated for user: {user_id}")
 
 
 @functions_framework.cloud_event
 def on_trend_update_started(cloud_event):
     from user_trend_update_publisher import UserTrendUpdatePublisher
-    print(f"[INFO] Publishing user-trend-update - Start")
     published_user_count = UserTrendUpdatePublisher().fetch_and_publish()
-    print(f"[INFO] Publishing user-trend-update - Done\npublished_user_count: {published_user_count}")
 
 
 @functions_framework.cloud_event
