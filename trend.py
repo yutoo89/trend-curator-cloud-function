@@ -9,11 +9,12 @@ from topic import Topic
 
 
 class Trend:
-    def __init__(self, user_id: str, title: str, body: str, keywords: list[str], queries: list[str] = None):
+    def __init__(self, user_id: str, title: str, topic: str, body: str, keywords: list[str], queries: list[str] = None):
         if queries is None:
             queries = []
         self.user_id = user_id
         self.title = title
+        self.topic = topic
         self.body = body
         self.keywords = keywords
         self.queries = queries
@@ -24,8 +25,6 @@ class Trend:
         user_id: str,
         topic: Topic,
         searcher: WebSearcher,
-        # language_code: str,
-        # exclude_keywords=None,
     ) -> Trend:
         print("[INFO] Trend.update - Start processing")
 
@@ -85,6 +84,7 @@ class Trend:
         doc_ref.set(
             {
                 "title": selected_topic,
+                "topic": query,
                 "body": manuscript,
                 "keywords": extracted_keywords,
                 "queries": related_keywords,
@@ -92,4 +92,4 @@ class Trend:
             merge=True,
         )
 
-        return Trend(user_id, selected_topic, manuscript, extracted_keywords)
+        return Trend(user_id, selected_topic, query, manuscript, extracted_keywords)
