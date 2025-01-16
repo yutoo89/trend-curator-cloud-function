@@ -9,7 +9,15 @@ from topic import Topic
 
 
 class Trend:
-    def __init__(self, user_id: str, title: str, topic: str, body: str, keywords: list[str], queries: list[str] = None):
+    def __init__(
+        self,
+        user_id: str,
+        title: str,
+        topic: str,
+        body: str,
+        keywords: list[str],
+        queries: list[str] = None,
+    ):
         if queries is None:
             queries = []
         self.user_id = user_id
@@ -47,9 +55,7 @@ class Trend:
                 keyword, exclude_keywords=exclude_keywords, num_results=10
             )
             all_results.extend(results)
-        print(
-            f"[INFO] Performing web search - Done: {len(all_results)} results found"
-        )
+        print(f"[INFO] Performing web search - Done: {len(all_results)} results found")
 
         # 検索結果からトレンドトピックを抽出
         print("[INFO] Selecting trend topic - Start")
