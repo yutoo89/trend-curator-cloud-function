@@ -45,6 +45,12 @@ def on_topic_created(cloud_event: CloudEvent) -> None:
         print(f"No 'raw_topic' field found in document: {user_id}")
         return
 
+    if not Trend.increment_usage(db, user_id):
+        print(
+            f"[INFO] User {user_id} has exceeded their monthly usage limit. Stopping execution."
+        )
+        return
+
     # 1. raw_topicをLLMで整形してtopicに書き込む
     raw_topic = doc_event_data.value.fields["raw_topic"].string_value
     locale = doc_event_data.value.fields["locale"].string_value

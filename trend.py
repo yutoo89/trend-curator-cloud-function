@@ -1,4 +1,5 @@
 from __future__ import annotations
+from datetime import datetime, timezone
 from firebase_admin import firestore
 from related_keyword_generator import RelatedKeywordGenerator
 from web_searcher import WebSearcher
@@ -9,6 +10,8 @@ from topic import Topic
 
 
 class Trend:
+    MONTHLY_LIMIT = 100
+
     def __init__(
         self,
         user_id: str,
@@ -99,3 +102,54 @@ class Trend:
         )
 
         return Trend(user_id, selected_topic, query, manuscript, extracted_keywords)
+
+    @staticmethod
+    def reset_usage(db: firestore.Client, user_id: str):
+        now = datetime.now(timezone.utc).isoformat()
+        doc_ref = db.collection("trends").document(user_id)
+
+        doc_ref.set(
+            {
+                "monthly_usage": 0,
+                "remaining_usage": Trend.MONTHLY_LIMIT,
+                "last_reset_date": now,
+            },
+            merge=True,
+        )
+
+    @staticmethod
+    def increment_usage(db: firestore.Client, user_id: str):
+        doc_ref = db.collection("trends").document(user_id)
+        doc = doc_ref.get()
+
+        if doc.exists:
+            trend_data = doc.to_dict()
+            monthly_usage = trend_data.get("monthly_usage", 0)
+            remaining_usage = trend_data.get("remaining_usage", Trend.MONTHLY_LIMIT)
+
+            if remaining_usage <= 0:
+                print(f"[INFO] User {user_id} has reached the monthly limit.")
+                return False
+
+            monthly_usage += 1
+            remaining_usage -= 1
+
+            doc_ref.set(
+                {"monthly_usage": monthly_usage, "remaining_usage": remaining_usage},
+                merge=True,
+            )
+            return True
+
+        else:
+            print(
+                f"[INFO] No trend data found for user {user_id}, initializing counters."
+            )
+            doc_ref.set(
+                {
+                    "monthly_usage": 1,
+                    "remaining_usage": Trend.MONTHLY_LIMIT - 1,
+                    "last_reset_date": datetime.now(timezone.utc).isoformat(),
+                },
+                merge=True,
+            )
+            return True

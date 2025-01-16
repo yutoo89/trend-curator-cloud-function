@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from firebase_admin import firestore
+from trend import Trend
 
 
 class AccessUpdater:
@@ -15,6 +16,14 @@ class AccessUpdater:
         if doc.exists:
             access_data = doc.to_dict()
             current_last_accessed = access_data.get("last_accessed")
+
+            if current_last_accessed:
+                last_accessed_date = datetime.fromisoformat(current_last_accessed)
+                if (
+                    last_accessed_date.month != datetime.now().month
+                    or last_accessed_date.year != datetime.now().year
+                ):
+                    Trend.reset_usage(self.db, self.user_id)
 
             doc_ref.set(
                 {"last_accessed": now, "previous_accessed": current_last_accessed},
