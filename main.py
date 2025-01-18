@@ -51,22 +51,16 @@ def on_topic_created(cloud_event: CloudEvent) -> None:
         )
         return
 
-    # 1. raw_topicをLLMで整形してtopicに書き込む
-    raw_topic = doc_event_data.value.fields["raw_topic"].string_value
-    locale = doc_event_data.value.fields["locale"].string_value
-    topic = Topic.update(db, user_id, raw_topic, locale)
+    # 1. topic取得
+    topic = Topic.get(db, user_id)
+    if not topic.is_technical_term:
+        print(f"[INFO] Topic '{topic.topic}' is not a technical term. Execution stopped for user {user_id}.")
+        return
 
     # 2. accessessを更新
     AccessUpdater(db, user_id).run()
 
     # 3. trendsを更新
-    exclude_keywords = []
-    if "exclude_keywords" in doc_event_data.value.fields:
-        exclude_keywords = [
-            kw.string_value
-            for kw in doc_event_data.value.fields["exclude_keywords"].array_value.values
-        ]
-
     searcher = WebSearcher(google_custom_search_api_key, google_search_cse_id)
     trend = Trend.update(
         db,
@@ -107,7 +101,11 @@ def on_user_trend_update_started(cloud_event):
         print("No user_id found in message.")
         return
 
-    topic = Topic.find(db, user_id)
+    topic = Topic.get(db, user_id)
+    if not topic.is_technical_term:
+        print(f"[INFO] Topic '{topic.topic}' is not a technical term. Execution stopped for user {user_id}.")
+        return
+
     searcher = WebSearcher(google_custom_search_api_key, google_search_cse_id)
     trend = Trend.update(
         db,
