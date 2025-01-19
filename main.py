@@ -57,7 +57,7 @@ def on_topic_created(cloud_event: CloudEvent) -> None:
     # 2. accessessを更新
     AccessUpdater(db, user_id).run()
 
-    # 3. trendsを更新
+    # 3. newsを更新
     news = News.create(db, user_id, topic.topic, topic.language_code)
     if not news.increment_usage():
         print(
