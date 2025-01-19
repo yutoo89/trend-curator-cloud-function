@@ -1,6 +1,5 @@
 from __future__ import annotations
 from firebase_admin import firestore
-from gemini_text_corrector import GeminiTextCorrector
 
 
 class DocumentNotFoundError(Exception):
