@@ -41,12 +41,12 @@ class Topic:
     @staticmethod
     def get(db: firestore.Client, user_id: str) -> Topic:
         doc = db.collection(Topic.COLLECTION_NAME).document(user_id).get()
-        
+
         if not doc.exists:
             raise DocumentNotFoundError(
                 f"Document with user_id '{user_id}' not found in collection '{Topic.COLLECTION_NAME}'."
             )
-        
+
         doc_data = doc.to_dict()
 
         raw_topic = doc_data.get("raw_topic")
@@ -68,52 +68,4 @@ class Topic:
             is_technical_term=is_technical_term,
             exclude_keywords=exclude_keywords,
             queries=queries,
-        )
-
-    @staticmethod
-    def update(
-        db: firestore.Client, user_id: str, raw_topic: str, locale: str
-    ) -> Topic:
-        parts = locale.split("-")
-        if len(parts) != 2:
-            raise ValueError(
-                "Invalid locale format. Expected format: 'language-region'."
-            )
-        language_code, region_code = parts
-
-        corrector = GeminiTextCorrector("gemini-1.5-flash")
-        corrected_topic = corrector.run(raw_topic, region_code)
-
-        doc_ref = db.collection("topics").document(user_id)
-        doc_ref.update(
-            {
-                "topic": corrected_topic,
-                "language_code": language_code,
-                "region_code": region_code,
-            }
-        )
-
-        return Topic(user_id, raw_topic, corrected_topic, language_code, region_code)
-
-    @staticmethod
-    def update_keywords(
-        db: firestore.Client,
-        user_id: str,
-        exclude_keywords: list[str],
-        queries: list[str] = None,
-    ) -> None:
-        if not isinstance(exclude_keywords, list) or not all(
-            isinstance(k, str) for k in exclude_keywords
-        ):
-            raise ValueError("exclude_keywords must be a list of strings.")
-
-        if queries is None:
-            queries = []
-
-        doc_ref = db.collection("topics").document(user_id)
-        doc_ref.update(
-            {
-                "exclude_keywords": exclude_keywords,
-                "queries": queries,
-            }
         )

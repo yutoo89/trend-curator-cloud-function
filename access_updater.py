@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from firebase_admin import firestore
-from trend import Trend
+from news import News
 
 
 class AccessUpdater:
@@ -23,7 +23,7 @@ class AccessUpdater:
                     last_accessed_date.month != datetime.now().month
                     or last_accessed_date.year != datetime.now().year
                 ):
-                    Trend.reset_usage(self.db, self.user_id)
+                    News.reset_usage(self.db, self.user_id)
 
             doc_ref.set(
                 {"last_accessed": now, "previous_accessed": current_last_accessed},
