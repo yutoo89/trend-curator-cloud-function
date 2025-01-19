@@ -19,13 +19,7 @@ class Topic:
         region_code: str,
         reading: str,
         is_technical_term: bool,
-        exclude_keywords: list[str] = None,
-        queries: list[str] = None,
     ):
-        if exclude_keywords is None:
-            exclude_keywords = []
-        if queries is None:
-            queries = []
         self.user_id = user_id
         self.raw_topic = raw_topic
         self.topic = topic
@@ -33,8 +27,6 @@ class Topic:
         self.region_code = region_code
         self.reading = reading
         self.is_technical_term = is_technical_term
-        self.exclude_keywords = exclude_keywords
-        self.queries = queries
         self.locale = f"{language_code}-{region_code}"
 
     @staticmethod
@@ -54,8 +46,6 @@ class Topic:
         is_technical_term = doc_data.get("is_technical_term", False)
         language_code = doc_data.get("language_code")
         region_code = doc_data.get("region_code")
-        exclude_keywords = doc_data.get("exclude_keywords", [])
-        queries = doc_data.get("queries", [])
 
         return Topic(
             user_id=user_id,
@@ -65,6 +55,4 @@ class Topic:
             region_code=region_code,
             reading=reading,
             is_technical_term=is_technical_term,
-            exclude_keywords=exclude_keywords,
-            queries=queries,
         )
