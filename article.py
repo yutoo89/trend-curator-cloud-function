@@ -2,6 +2,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from firebase_admin import firestore
 import google.generativeai as genai
+from google.cloud.firestore_v1.vector import Vector
 
 
 class Article:
@@ -38,7 +39,7 @@ class Article:
         try:
             embedding = response["embedding"]
             print(f"[INFO] Vectorization successful for title: {self.title}")
-            self.doc_ref.update({"embedding": embedding})
+            self.doc_ref.update({"embedding": Vector(embedding)})
             return embedding
         except Exception as e:
             print(f"[ERROR] Failed to vectorize article: {e}")
