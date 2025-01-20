@@ -11,6 +11,7 @@ from news_topic_selector import NewsTopicSelector
 from access_updater import AccessUpdater
 from web_searcher import WebSearcher
 from user_trend_update_publisher import UserTrendUpdatePublisher
+from article import Article
 import base64
 import json
 
@@ -68,6 +69,9 @@ def on_topic_created(cloud_event: CloudEvent) -> None:
     selector = NewsTopicSelector("gemini-1.5-flash", searcher)
     news.update(selector)
 
+    # 4. RAG用に記事を保存
+    Article.bulk_create(db, news.articles)
+
 
 @functions_framework.cloud_event
 def on_trend_update_started(cloud_event):
@@ -99,7 +103,34 @@ def on_user_trend_update_started(cloud_event):
         print("No user_id found in message.")
         return
 
+    # ニュースを更新
     searcher = WebSearcher(google_custom_search_api_key, google_search_cse_id)
     selector = NewsTopicSelector("gemini-1.5-flash", searcher)
     news = News.get(db, user_id)
     news.update(selector)
+
+    # RAG用に記事を保存
+    Article.bulk_create(db, news.articles)
+
+
+@functions_framework.cloud_event
+def on_article_created(cloud_event: CloudEvent) -> None:
+    """
+    articlesコレクションに新規ドキュメントが追加された時に実行
+    """
+    print(f"Triggered by creation of a document: {cloud_event['source']}")
+
+    doc_event_data = firestore_event.DocumentEventData()
+    doc_event_data._pb.ParseFromString(cloud_event.data)
+
+    doc_path = doc_event_data.value.name
+    doc_id = doc_path.split("/")[-1]
+
+    fields = doc_event_data.value.fields
+
+    title = fields["title"].string_value if "title" in fields else ""
+    body = fields["body"].string_value if "body" in fields else ""
+    url = fields["url"].string_value if "url" in fields else ""
+    article_ref = db.collection(Article.COLLECTION_NAME).document(doc_id)
+    article = Article(title, body, url, article_ref)
+    article.vectorize()
