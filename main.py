@@ -70,7 +70,7 @@ def on_topic_created(cloud_event: CloudEvent) -> None:
     news.update(selector)
 
     # 4. RAG用に記事を保存
-    Article.bulk_create(db, news.articles)
+    # Article.bulk_create(db, news.articles)
 
 
 @functions_framework.cloud_event
@@ -110,7 +110,7 @@ def on_user_trend_update_started(cloud_event):
     news.update(selector)
 
     # RAG用に記事を保存
-    Article.bulk_create(db, news.articles)
+    # Article.bulk_create(db, news.articles)
 
 
 @functions_framework.cloud_event

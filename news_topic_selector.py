@@ -29,17 +29,16 @@ class NewsTopicSelector:
 
         prompt_lines = [
             "以下にWEBエンジニア向けのニュース記事のタイトルとURLのリストを提供します。",
-            "それらを分析し、今注目されている具体的なツールや機能、使い方をひとつ選択します。",
-            "そして、「興味深いトピックはある？」という質問に対する短い回答を、自然に発話できる形式で作成してください。",
-            "また、その詳細を調べるための検索クエリを作成してください。",
+            "今注目されている具体的なツールや機能、使い方をひとつ選択し、詳細を調べるための検索クエリを作成してください。",
+            "また、そのツールや機能、使い方の短い説明文を作成してください。",
             "",
-            "選定条件:",
-            "- WEBエンジニア向けの最新のツール、API、新機能、使い方を紹介すること",
-            "  - 直近数週間以内のニュースを優先し、半年以上前から知られているトピックは除外すること",
-            "- 質問の回答および検索クエリには固有名詞を含め、検索クエリには検索意図の明確化に必要な情報を含めること",
-            "  - 良いクエリ例: 'Copilot GitHub'、'Cline VSCode'",
-            "  - 悪いクエリ例: 'AI'、'画像生成技術'",
-            "- 複数のサイトを横断して登場するキーワードを優先すること",
+            "条件:",
+            "- WEBエンジニア向けの最新のツール、API、新機能、使い方の具体的な情報から選択すること",
+            "  - 直近数週間以内のニュースを優先し、半年以上前から知られている情報は除外すること",
+            "- 検索クエリは、ツールや機能の商品名など、十分に具体的なものであること",
+            "  - 良い例: 'Copilot GitHub'、'Cline VSCode'、'LlamaIndex'",
+            "  - 悪い例: 'テスト自動化'、'API連携'、'生成AI'",
+            "- 複数のサイトを横断して登場するトピックを優先すること",
             "- 概念的な話題（例: 技術の倫理、社会的影響、経済動向）は除外すること",
         ]
 
@@ -91,7 +90,7 @@ class NewsTopicSelector:
             related_urls = parsed_result["related_urls"]
         except Exception as e:
             print(f"Failed to parse news topic response: {e}")
-            return "", []
+            return "", [], ""
 
         additional_results = self.searcher.search(query, num_results=10)
         search_results.extend(additional_results)
@@ -110,4 +109,4 @@ class NewsTopicSelector:
             body = ArticleContentFetcher.fetch(url)
             articles.append({"title": title, "url": url, "body": body})
 
-        return introduction, articles
+        return introduction, articles, query
