@@ -20,7 +20,7 @@ class News:
         language_code: str,
         introduction: str,
         articles: list,
-        query: str,
+        queries: list[str],
         monthly_usage: int,
         remaining_usage: int,
         last_reset_date: str,
@@ -31,7 +31,7 @@ class News:
         self.language_code = language_code
         self.introduction = introduction
         self.articles = articles
-        self.query = query
+        self.queries = queries
         self.monthly_usage = monthly_usage
         self.remaining_usage = remaining_usage
         self.last_reset_date = last_reset_date
@@ -47,7 +47,7 @@ class News:
 
         introduction = None
         articles = []
-        query = ""
+        queries = []
         monthly_usage = 0
         remaining_usage = News.MONTHLY_LIMIT
         last_reset_date = now
@@ -62,7 +62,7 @@ class News:
                 "language_code": language_code,
                 "introduction": introduction,
                 "articles": articles,
-                "query": query,
+                "queries": queries,
                 "monthly_usage": monthly_usage,
                 "remaining_usage": remaining_usage,
                 "last_reset_date": last_reset_date,
@@ -76,7 +76,7 @@ class News:
             language_code=language_code,
             introduction=introduction,
             articles=articles,
-            query=query,
+            queries=queries,
             monthly_usage=monthly_usage,
             remaining_usage=remaining_usage,
             last_reset_date=last_reset_date,
@@ -99,7 +99,7 @@ class News:
         language_code = doc_data.get("language_code")
         introduction = doc_data.get("introduction", "")
         articles = doc_data.get("articles", [])
-        query = doc_data.get("query", "")
+        queries = doc_data.get("queries", [])
         monthly_usage = doc_data.get("monthly_usage", 0)
         remaining_usage = doc_data.get("remaining_usage", News.MONTHLY_LIMIT)
         last_reset_date = doc_data.get("last_reset_date", "")
@@ -110,7 +110,7 @@ class News:
             language_code=language_code,
             introduction=introduction,
             articles=articles,
-            query=query,
+            queries=queries,
             monthly_usage=monthly_usage,
             remaining_usage=remaining_usage,
             last_reset_date=last_reset_date,
@@ -121,25 +121,28 @@ class News:
         print("[INFO] News.update - Start processing")
         keyword = self.keyword
         language_code = self.language_code
-        exclude = self.introduction
+        exclude = self.queries
 
         introduction, articles, query = selector.select_news_topic(
             keyword=keyword, language_code=language_code, exclude=exclude
         )
         print(f"[INFO] Selecting news topic - Done: {introduction}")
 
+        updated_queries = self.queries[-9:] if self.queries else []
+        updated_queries.append(query)
+
         self.doc_ref.set(
             {
                 "introduction": introduction,
                 "articles": articles,
-                "query": query,
+                "queries": updated_queries,
             },
             merge=True,
         )
 
         self.introduction = introduction
         self.articles = articles
-        self.query = query
+        self.queries = updated_queries
         print("[INFO] News.update - Successfully updated Firestore and instance.")
 
     @staticmethod

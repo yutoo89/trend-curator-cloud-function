@@ -23,30 +23,33 @@ class NewsTopicSelector:
         self,
         search_results: list,
         language_code: str,
-        exclude: str = None,
+        exclude: list[str] = None,
     ):
         search_results_json = json.dumps(search_results, ensure_ascii=False, indent=2)
 
         prompt_lines = [
             "以下にWEBエンジニア向けのニュース記事のタイトルとURLのリストを提供します。",
-            "今注目されている具体的なツールや機能、使い方をひとつ選択し、詳細を調べるための検索クエリを作成してください。",
+            "今注目されている具体的なツールや機能、使い方をひとつ選択し、詳細を調べるためのキーワード(ツール名)を生成してください。",
             "また、そのツールや機能、使い方の短い説明文を作成してください。",
             "",
             "条件:",
-            "- WEBエンジニア向けの最新のツール、API、新機能、使い方の具体的な情報から選択すること",
-            "  - 直近数週間以内のニュースを優先し、半年以上前から知られている情報は除外すること",
-            "- 検索クエリは、ツールや機能の商品名など、十分に具体的なものであること",
+            "- WEBエンジニア向けの最新のツール、API、新機能、使い方の具体的な情報を選択すること",
+            "  - 知識に頼らず、必ず提供された記事の中から最新のトピックを選択すること",
+            "  - 直近数週間以内のニュースを優先し、半年以上前から知られている話題は除外すること",
+            "- 検索キーワードは、ツールや機能の固有名詞など、十分に具体的なものであること",
             "  - 良い例: 'Copilot GitHub'、'Cline VSCode'、'LlamaIndex'",
             "  - 悪い例: 'テスト自動化'、'API連携'、'生成AI'",
+            "  ※ 上記の例はキーワードの具体性を示すものであり、最新の記事に基づいていないため、そのままは採用しないこと",
             "- 複数のサイトを横断して登場するトピックを優先すること",
             "- 概念的な話題（例: 技術の倫理、社会的影響、経済動向）は除外すること",
         ]
 
         if exclude:
+            formatted_exclude = "\n".join(f"  - {topic}" for topic in exclude)
             prompt_lines.extend(
                 [
-                    "- 下記のトピックに類似・重複していないこと",
-                    f"  - 除外するトピック: {exclude}",
+                    "- 下記の禁止トピックに類似・重複していないこと",
+                    formatted_exclude,
                 ]
             )
 
@@ -55,7 +58,7 @@ class NewsTopicSelector:
                 "",
                 "出力形式:",
                 "- introduction: トピックの紹介",
-                "- query: 検索クエリ",
+                "- query: 検索キーワード(ツール名)",
                 "- related_urls: トピックに関連するページのURL(最大5件)",
                 "",
                 f"出力言語: '{language_code}'",
@@ -71,7 +74,7 @@ class NewsTopicSelector:
         self,
         keyword: str,
         language_code: str,
-        exclude: str = None,
+        exclude: list[str] = None,
     ):
         search_results = self.searcher.bulk_search(keyword)
 
