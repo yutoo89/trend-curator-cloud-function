@@ -26,17 +26,6 @@ class Article:
         self.url = url
         self.published = published
 
-    @staticmethod
-    def create(
-        source: str, title: str, summary: str, url: str, published: datetime
-    ) -> Article:
-        try:
-            body = ArticleContentFetcher.fetch(url)
-        except Exception as e:
-            body = ""
-
-        return Article(source, title, summary, body, url, published)
-
     # @staticmethod
     # def bulk_create(db: firestore.Client, articles: list):
     #     articles_collection = db.collection(Article.COLLECTION_NAME)

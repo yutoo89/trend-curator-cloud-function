@@ -1,6 +1,8 @@
 from typing import List
 import feedparser
 from article import Article
+from article_cleaner import ArticleCleaner
+from article_content_fetcher import ArticleContentFetcher
 
 
 class RSSArticleFetcher:
@@ -17,6 +19,7 @@ class RSSArticleFetcher:
     @staticmethod
     def fetch_articles() -> List[Article]:
         articles = []
+        cleaner = ArticleCleaner("gemini-1.5-flash")
         for source, url in RSSArticleFetcher.RSS_FEEDS.items():
             try:
                 feed = feedparser.parse(url)
@@ -25,19 +28,22 @@ class RSSArticleFetcher:
                 continue
 
             for entry in feed.entries:
+                title = entry.title
+                summary = cleaner.clean_text(entry.summary)
                 try:
-                    article = Article.create(
+                    body = ArticleContentFetcher.fetch(entry.link)
+                    body = cleaner.clean_text(body)
+                    body = cleaner.llm_clean_text(body, title)
+                except Exception as e:
+                    body = ""
+                article = Article(
                         source=source,
-                        title=entry.title,
-                        summary=entry.summary,
+                    title=title,
+                    summary=summary,
+                    body=body,
                         url=entry.link,
                         published=entry.published,
                     )
                     articles.append(article)
-                except Exception as e:
-                    print(
-                        f"[ERROR] Failed to create article from entry '{entry.title}': {e}"
-                    )
-                    continue
 
         return articles
