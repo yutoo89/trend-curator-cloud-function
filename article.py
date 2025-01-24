@@ -1,9 +1,5 @@
 from __future__ import annotations
-from datetime import datetime, timezone
-from firebase_admin import firestore
-import google.generativeai as genai
-from google.cloud.firestore_v1.vector import Vector
-from article_content_fetcher import ArticleContentFetcher
+from datetime import datetime
 
 
 class Article:
@@ -19,6 +15,8 @@ class Article:
         url: str,
         published: datetime,
     ):
+        if not isinstance(published, datetime):
+            published = datetime.now()
         self.source = source
         self.title = title
         self.summary = summary
@@ -26,30 +24,12 @@ class Article:
         self.url = url
         self.published = published
 
-    # @staticmethod
-    # def bulk_create(db: firestore.Client, articles: list):
-    #     articles_collection = db.collection(Article.COLLECTION_NAME)
-
-    #     for article in articles:
-    #         articles_collection.add(
-    #             {
-    #                 "title": article["title"],
-    #                 "url": article["url"],
-    #                 "body": article["body"],
-    #                 "timestamp": datetime.now(timezone.utc).isoformat(),
-    #             }
-    #         )
-
-    # def vectorize(self, model_name: str = EMBEDDING_MODEL):
-    #     if model_name is None:
-    #         model_name = self.EMBEDDING_MODEL
-    #     content = f"Title: {self.title}\nBody: {self.body}"
-    #     response = genai.embed_content(model=model_name, content=content)
-    #     try:
-    #         embedding = response["embedding"]
-    #         print(f"[INFO] Vectorization successful for title: {self.title}")
-    #         self.doc_ref.update({"embedding": Vector(embedding)})
-    #         return embedding
-    #     except Exception as e:
-    #         print(f"[ERROR] Failed to vectorize article: {e}")
-    #         return None
+    def to_dict(self):
+        return {
+            "source": self.source,
+            "title": self.title,
+            "summary": self.summary,
+            "body": self.body,
+            "url": self.url,
+            "published": self.published.isoformat(),
+        }

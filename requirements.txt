@@ -8,3 +8,5 @@ google-api-python-client
 beautifulsoup4
 google-cloud-pubsub
 feedparser
+vertexai==1.71.1
+google-cloud-aiplatform[all]==1.71.1
