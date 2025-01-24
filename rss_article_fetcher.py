@@ -1,17 +1,13 @@
-import time
 from typing import List
 import feedparser
 from article import Article
 from article_cleaner import ArticleCleaner
-from article_content_fetcher import ArticleContentFetcher
 
 
 class RSSArticleFetcher:
     FEED_ENTRIES_LIMIT = 10
-    ARTICLE_MAX_LENGTH = 3000
 
     def __init__(self, model_name: str):
-        self.fetcher = ArticleContentFetcher
         self.cleaner = ArticleCleaner(model_name)
 
     def fetch_articles(self, rss_url: str, source: str = None) -> List[Article]:
@@ -23,22 +19,14 @@ class RSSArticleFetcher:
             print(f"[ERROR] Failed to parse URL '{rss_url}': {e}")
             return []
 
-        for entry in feed.entries[:self.FEED_ENTRIES_LIMIT]:
+        for entry in feed.entries[: self.FEED_ENTRIES_LIMIT]:
             title = entry.title
             summary = self.cleaner.clean_text(entry.summary)
-            try:
-                body = self.fetcher.fetch(entry.link)
-                body = self.cleaner.clean_text(body)[:self.ARTICLE_MAX_LENGTH]
-                body = self.cleaner.llm_clean_text(body, title)
-                time.sleep(5)
-            except Exception as e:
-                print(f"[ERROR] Failed to fetch URL '{entry.link}': {e}")
-                body = ""
             article = Article(
                 source=source,
                 title=title,
                 summary=summary,
-                body=body,
+                body="",
                 url=entry.link,
                 published=entry.published,
             )
