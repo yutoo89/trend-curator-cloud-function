@@ -1,4 +1,5 @@
 import os
+import vertexai
 from cloudevents.http import CloudEvent
 import functions_framework
 from google.events.cloud import firestore as firestore_event
@@ -11,12 +12,18 @@ from news_topic_selector import NewsTopicSelector
 from access_updater import AccessUpdater
 from web_searcher import WebSearcher
 from user_trend_update_publisher import UserTrendUpdatePublisher
+from rss_article_uploader import RssArticleUploader
 from article import Article
 import base64
 import json
 
 # GenAI 初期化
 genai.configure(api_key=os.environ["GENAI_API_KEY"])
+
+# Vertex AI APIの初期化
+PROJECT_ID = os.getenv("PROJECT_ID")
+VERTEX_AI_LOCATION = os.getenv("VERTEX_AI_LOCATION", "us-central1")
+vertexai.init(project=PROJECT_ID, location=VERTEX_AI_LOCATION)
 
 # Firestore 初期化
 if not firebase_admin._apps:
@@ -69,17 +76,17 @@ def on_topic_created(cloud_event: CloudEvent) -> None:
     selector = NewsTopicSelector("gemini-1.5-flash", searcher)
     news.update(selector)
 
-    # 4. RAG用に記事を保存
-    # Article.bulk_create(db, news.articles)
-
 
 @functions_framework.cloud_event
 def on_trend_update_started(cloud_event):
     """
     trend-updatesトピックにメッセージが送信された時に実行
     """
-
+    # TODO: RAG Agentを使った実装に置き換えたら下記は削除
     UserTrendUpdatePublisher().fetch_and_publish()
+
+    uploader = RssArticleUploader("gemini-1.5-flash")
+    uploader.bulk_upload()
 
 
 @functions_framework.cloud_event
@@ -108,9 +115,6 @@ def on_user_trend_update_started(cloud_event):
     selector = NewsTopicSelector("gemini-1.5-flash", searcher)
     news = News.get(db, user_id)
     news.update(selector)
-
-    # RAG用に記事を保存
-    # Article.bulk_create(db, news.articles)
 
 
 @functions_framework.cloud_event

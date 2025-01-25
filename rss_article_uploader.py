@@ -62,7 +62,9 @@ class RssArticleUploader:
         """Fetch and clean the article body."""
         try:
             article.body = self.content_fetcher.fetch(article.url)
-            article.body = self.cleaner.clean_text(article.body)[: self.ARTICLE_MAX_LENGTH]
+            article.body = self.cleaner.clean_text(article.body)[
+                : self.ARTICLE_MAX_LENGTH
+            ]
             article.body = self.cleaner.llm_clean_text(article.body, article.title)
         except Exception as e:
             print(f"[ERROR] Failed to fetch or clean body for URL '{article.url}': {e}")
@@ -101,8 +103,10 @@ class RssArticleUploader:
                         self.upload_article(article)
                         total_uploaded += 1
                         articles_uploaded = True
-                    except Exception:
-                        print(f"[ERROR] Failed to process article '{article.url}' from source '{article.source}': {e}")
+                    except Exception as e:
+                        print(
+                            f"[ERROR] Failed to process article '{article.url}' from source '{article.source}': {e}"
+                        )
                         continue
 
                 except StopIteration:

@@ -49,7 +49,7 @@ class RAGNewsAgent:
 
 
 # Example Usage
-agent = RAGNewsAgent()
-query = "いまイケてるAIツールを教えて"
-response = agent.generate_response(query)
-print("Generated Response:", response)
+# agent = RAGNewsAgent()
+# query = "最近のおすすめのAIツールは？"
+# response = agent.generate_response(query)
+# print("Generated Response:", response)
