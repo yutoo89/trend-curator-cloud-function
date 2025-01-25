@@ -1,9 +1,9 @@
 from __future__ import annotations
 from datetime import datetime
+import json
 
 
 class Article:
-    # EMBEDDING_MODEL = "models/text-embedding-004"
     COLLECTION_NAME = "articles"
 
     def __init__(
@@ -24,12 +24,12 @@ class Article:
         self.url = url
         self.published = published
 
-    def to_dict(self):
-        return {
-            "source": self.source,
+    def to_json(self):
+        data = {
+            "url": self.url,
+            "published": self.published.isoformat(),
             "title": self.title,
             "summary": self.summary,
             "body": self.body,
-            "url": self.url,
-            "published": self.published.isoformat(),
         }
+        return json.dumps(data, ensure_ascii=False)
