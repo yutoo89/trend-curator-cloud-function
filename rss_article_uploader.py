@@ -1,6 +1,6 @@
+import os
 import re
-import time
-import json
+from vertexai.preview import rag
 from rss_article_fetcher import RSSArticleFetcher
 from google.cloud import storage
 from article import Article
@@ -20,6 +20,10 @@ class RssArticleUploader:
         "Qiita Popular Articles": "https://qiita.com/popular-items/feed.atom",
         "CodeZine Latest Articles": "https://codezine.jp/rss/new/20/index.xml",
     }
+    RAG_CORPUS_NAME = os.getenv("RAG_CORPUS_NAME")
+    RAG_CHUNK_SIZE = 512
+    RAG_CHUNK_OVERLAP = 100
+    RAG_MAX_EMBEDDING_REQUESTS_PER_MIN = 900
 
     def __init__(self, model_name: str):
         self.fetcher = RSSArticleFetcher(model_name)
@@ -36,40 +40,71 @@ class RssArticleUploader:
         path = f"{safe_url}.json"
         blob = self.bucket.blob(path)
 
-        json_data = json.dumps(article.to_dict(), ensure_ascii=False, indent=4)
+        json_data = article.to_json()
         blob.upload_from_string(json_data, content_type="application/json")
         print(f"Uploaded article: {article.source} - {article.title}")
+        return f"gs://{self.BUCKET_NAME}/{path}"
+
+    def add_to_rag_corpus(self, path: str):
+        try:
+            rag.import_files(
+                self.RAG_CORPUS_NAME,
+                [path],
+                chunk_size=self.RAG_CHUNK_SIZE,
+                chunk_overlap=self.RAG_CHUNK_OVERLAP,
+                max_embedding_requests_per_min=self.RAG_MAX_EMBEDDING_REQUESTS_PER_MIN,
+            )
+        except Exception as e:
+            print(f"Failed to import file {path}: {e}")
+            raise
+
+    def update_article_body(self, article: Article):
+        """Fetch and clean the article body."""
+        try:
+            article.body = self.content_fetcher.fetch(article.url)
+            article.body = self.cleaner.clean_text(article.body)[: self.ARTICLE_MAX_LENGTH]
+            article.body = self.cleaner.llm_clean_text(article.body, article.title)
+        except Exception as e:
+            print(f"[ERROR] Failed to fetch or clean body for URL '{article.url}': {e}")
+
+    def upload_article(self, article: Article):
+        """Upload article to GCS and import it to the RAG corpus."""
+        gcs_path = self.upload_to_gcs(article)
+        self.add_to_rag_corpus(gcs_path)
 
     def bulk_upload(self):
-        articles_by_source = {
-            source: self.fetcher.fetch_articles(rss_url, source)
-            for source, rss_url in self.RSS_FEEDS.items()
-        }
+        articles_by_source = {}
+
+        for source, rss_url in self.RSS_FEEDS.items():
+            try:
+                articles_by_source[source] = self.fetcher.fetch_articles(
+                    rss_url, source
+                )
+            except Exception as e:
+                print(f"[ERROR] Failed to fetch articles for source '{source}': {e}")
+                continue
 
         sources = list(articles_by_source.keys())
         source_article_queues = {
             source: iter(articles) for source, articles in articles_by_source.items()
         }
 
+        total_uploaded = 0
         while True:
             articles_uploaded = False
             for source in sources:
                 try:
                     article = next(source_article_queues[source])
-                    try:
-                        article.body = self.content_fetcher.fetch(article.url)
-                        time.sleep(2)
-                        article.body = self.cleaner.clean_text(article.body)[
-                            : self.ARTICLE_MAX_LENGTH
-                        ]
-                        article.body = self.cleaner.llm_clean_text(
-                            article.body, article.title
-                        )
-                    except Exception as e:
-                        print(f"[ERROR] Failed to fetch URL '{article.url}': {e}")
+                    self.update_article_body(article)
 
-                    self.upload_to_gcs(article)
-                    articles_uploaded = True
+                    try:
+                        self.upload_article(article)
+                        total_uploaded += 1
+                        articles_uploaded = True
+                    except Exception:
+                        print(f"[ERROR] Failed to process article '{article.url}' from source '{article.source}': {e}")
+                        continue
+
                 except StopIteration:
                     # This source has no more articles
                     continue
@@ -77,3 +112,5 @@ class RssArticleUploader:
             if not articles_uploaded:
                 # Exit the loop if no articles were uploaded in this round
                 break
+
+        print(f"Total articles uploaded: {total_uploaded}")
