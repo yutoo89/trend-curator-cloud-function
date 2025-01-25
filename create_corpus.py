@@ -5,7 +5,7 @@ from vertexai.preview import rag
 # Configuration
 PROJECT_ID = os.getenv("PROJECT_ID")
 VERTEX_AI_LOCATION = os.getenv("VERTEX_AI_LOCATION", "us-central1")
-PUBLISHER_MODEL = "publishers/google/models/text-multilingual-embedding-002"
+PUBLISHER_MODEL = "publishers/google/models/text-embedding-004"
 RAG_CHUNK_SIZE = 512
 RAG_CHUNK_OVERLAP = 100
 RAG_MAX_EMBEDDING_REQUESTS_PER_MIN = 900
