@@ -1,5 +1,4 @@
 import os
-import vertexai
 from cloudevents.http import CloudEvent
 import functions_framework
 from google.events.cloud import firestore as firestore_event
@@ -17,13 +16,12 @@ from article import Article
 import base64
 import json
 
+# TODO:
+# - ベクトル保存処理をfirestoreに置き換え
+# - RAGの回答生成処理をfirestoreに置き換え
+
 # GenAI 初期化
 genai.configure(api_key=os.environ["GENAI_API_KEY"])
-
-# Vertex AI APIの初期化
-PROJECT_ID = os.getenv("PROJECT_ID")
-VERTEX_AI_LOCATION = os.getenv("VERTEX_AI_LOCATION", "us-central1")
-vertexai.init(project=PROJECT_ID, location=VERTEX_AI_LOCATION)
 
 # Firestore 初期化
 if not firebase_admin._apps:
@@ -83,9 +81,9 @@ def on_trend_update_started(cloud_event):
     trend-updatesトピックにメッセージが送信された時に実行
     """
     # TODO: RAG Agentを使った実装に置き換えたら下記は削除
-    UserTrendUpdatePublisher().fetch_and_publish()
+    # UserTrendUpdatePublisher().fetch_and_publish()
 
-    uploader = RssArticleUploader("gemini-1.5-flash")
+    uploader = RssArticleUploader("gemini-1.5-flash", db)
     uploader.bulk_upload()
 
 
