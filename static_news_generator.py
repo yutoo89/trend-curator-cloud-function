@@ -73,25 +73,28 @@ class StaticNewsGenerator:
         result_strings = self.get_recent_articles(exclude_ids=exclude_ids)
 
         # prompt の組み立て
-        article_list = "\n- ".join(result_strings)
+        article_list = "\n\n".join(result_strings)
         prompt_lines = [
-            "以下にWEBエンジニア向けのニュース記事のタイトルのリストを提供します。",
-            "この中から重要と思われる記事をひとつ選び、ひとことの紹介文を作成してください。",
+            "あなたはエンジニアに最新の技術情報を伝えるアナウンサーです。",
+            "以下に提供される記事一覧を分析し、もっとも重要なトピックをひとつ選んで伝えてください。"
+            "",
+            "質問: 本日のニュースを教えてください",
             "",
             "条件:",
-            "- トピックの紹介文は、話し言葉で簡潔かつ丁寧に作成すること",
+            "- 抽象的な表現は避け、具体的なツール名や企業名、専門用語を使用して詳細に伝えること",
+            "- 日時や企業名、情報源などの詳細は省略せず、具体的に伝えること",
+            "- URLやソースコード、括弧など自然に発話できない表現は避けること",
             "- 複数の記事で取り上げられているテーマや大手企業の関連する記事を優先すること",
             "- その記事に関する20文字以下の短い質問例を作成すること",
-            "  - 例: OpenAIがGUIエージェント「Operator」を発表 => 「Operator」に類似の技術にはどんなものがありますか？",
             "",
             "出力形式:",
-            "- summary: トピックのひとことの説明",
+            "- summary: ニュースの原稿",
             "- sample_question: トピックに関する質問例",
             "",
             f"出力言語: '{language_code}'",
             "",
             "記事一覧:",
-            f"- {article_list}",
+            f"{article_list}",
         ]
         return "\n".join(prompt_lines)
 
@@ -123,7 +126,8 @@ class StaticNewsGenerator:
             if len(body) <= 200:
                 continue
             # 必要な情報をタイトル文字列に
-            article_txt = f"{article_dict.get('title', '')}"
+            title = f"{article_dict.get('title', '')}"
+            article_txt = f"{title}:\n{body[:200]}..."
             result_strings.append(article_txt)
 
         return result_strings
