@@ -35,6 +35,8 @@ class StaticNewsGenerator:
         cutoff_date = datetime.now() - timedelta(days=7)
         query = self.static_news_collection.where(
             filter=FieldFilter("published", ">=", cutoff_date)
+        ).where(
+            filter=FieldFilter("language_code", "==", "en")
         )
         docs = query.stream()
 
@@ -66,8 +68,6 @@ class StaticNewsGenerator:
                     if article_data and "id" in article_data:
                         exclude_ids.append(article_data["id"])
 
-        print("除外id:")
-        print(list(set(exclude_ids)))
         return list(set(exclude_ids))
 
     def create_prompt(self, language_code: str, exclude_ids: list[str] = None) -> str:
@@ -139,7 +139,6 @@ class StaticNewsGenerator:
 
         # 2. exclude_ids を利用してプロンプトを作成
         prompt = self.create_prompt(language_code, exclude_ids=exclude_ids)
-        print(prompt)
 
         # 3. LLM に投げて応答を受け取る
         response = self.model.generate_content(

@@ -16,6 +16,7 @@ from article import Article
 import base64
 import json
 from article_cleaner import ArticleCleaner
+from static_news_generator import StaticNewsGenerator
 
 # TODO:
 # - ベクトル保存処理をfirestoreに置き換え
@@ -86,6 +87,11 @@ def on_trend_update_started(cloud_event):
 
     uploader = RssArticleUploader("gemini-1.5-flash", db)
     uploader.bulk_upload()
+
+    generator = StaticNewsGenerator(db, "gemini-1.5-flash")
+    for language_code in ["ja", "en"]:
+        static_news = generator.generate_news(language_code)
+        print(f"[INFO] Created static news: {static_news.body}")
 
 
 @functions_framework.cloud_event
