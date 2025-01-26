@@ -115,6 +115,11 @@ class Article:
     def collection(db):
         return db.collection(Article.COLLECTION)
 
+    @staticmethod
+    def exists(ref, id):
+        doc_ref = ref.document(id)
+        return doc_ref.get().exists
+
 
 # import os
 # import firebase_admin

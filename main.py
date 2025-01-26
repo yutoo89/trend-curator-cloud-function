@@ -15,6 +15,7 @@ from rss_article_uploader import RssArticleUploader
 from article import Article
 import base64
 import json
+from article_cleaner import ArticleCleaner
 
 # TODO:
 # - ベクトル保存処理をfirestoreに置き換え
@@ -128,11 +129,10 @@ def on_article_created(cloud_event: CloudEvent) -> None:
     doc_path = doc_event_data.value.name
     doc_id = doc_path.split("/")[-1]
 
-    fields = doc_event_data.value.fields
+    article_collection = Article.collection(db)
+    article = Article.get(article_collection, doc_id)
 
-    title = fields["title"].string_value if "title" in fields else ""
-    body = fields["body"].string_value if "body" in fields else ""
-    url = fields["url"].string_value if "url" in fields else ""
-    article_ref = db.collection(Article.COLLECTION_NAME).document(doc_id)
-    article = Article(title, body, url, article_ref)
-    article.vectorize()
+    article.import_body(article_collection, ArticleCleaner("gemini-1.5-flash"))
+    article.vectorize(article_collection)
+
+    print(f"[INFO] Article vectorize success: {article.title}")

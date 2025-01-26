@@ -26,7 +26,6 @@ class RSSArticleFetcher:
                 source=source,
                 title=title,
                 summary=summary,
-                body="",
                 url=entry.link,
                 published=entry.published,
             )
