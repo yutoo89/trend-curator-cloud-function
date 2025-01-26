@@ -5,10 +5,14 @@ from google.cloud.firestore_v1.vector import Vector
 from datetime import datetime
 import json
 import re
+from article_content_fetcher import ArticleContentFetcher
+from article_cleaner import ArticleCleaner
 
 
 class Article:
     COLLECTION = "articles"
+    MAX_LENGTH = 3000
+    EMBEDDING_MODEL = "models/text-embedding-004"
 
     def __init__(
         self,
@@ -30,14 +34,13 @@ class Article:
         self.published = published if published else datetime.now()
         self.embedding = embedding
 
-    def to_json(self):
+    def to_json_for_embedding(self):
         data = {
-            "url": self.url,
-            "published": self.published.isoformat(),
             "title": self.title,
             "summary": self.summary,
-            "body": self.body,
         }
+        if self.body:
+            data["body"] = self.body
         return json.dumps(data, ensure_ascii=False)
 
     @staticmethod
@@ -46,26 +49,25 @@ class Article:
             r"[^\w\-]", "_", url.replace("https://", "").replace("http://", "")
         )
 
-    def vectorize(self, model_name: str):
-        content = self.to_json()
-        response = genai.embed_content(model=model_name, content=content)
+    def vectorize(self, ref):
+        if self.embedding:
+            return
+        content = self.to_json_for_embedding()
+        response = genai.embed_content(model=self.EMBEDDING_MODEL, content=content)
         embedding = response["embedding"]
-        self.embedding = Vector(embedding)
-        return self
+        self.update(ref, {"embedding": Vector(embedding)})
 
-    def save(self, doc_ref: firestore.DocumentReference):
-        doc_ref.set(
-            {
-                "source": self.source,
-                "title": self.title,
-                "summary": self.summary,
-                "body": self.body,
-                "url": self.url,
-                "published": self.published,
-                "embedding": self.embedding,
-            }
-        )
-        return doc_ref
+    def import_body(self, ref, cleaner: ArticleCleaner):
+        body = self.body
+        if body:
+            return
+        try:
+            body = ArticleContentFetcher.fetch(self.url)
+            body = cleaner.clean_text(body)[: self.MAX_LENGTH]
+            body = cleaner.llm_clean_text(body, self.title)
+        except Exception as e:
+            print(f"[ERROR] Failed to fetch or clean body for URL '{self.url}': {e}")
+        self.update(ref, {"body": body})
 
     @staticmethod
     def from_dict(source):
@@ -114,8 +116,12 @@ class Article:
         return db.collection(Article.COLLECTION)
 
 
+# import os
 # import firebase_admin
 # from firebase_admin import firestore
+# import google.generativeai as genai
+
+# genai.configure(api_key=os.environ["GENAI_API_KEY"])
 # if not firebase_admin._apps:
 #     firebase_admin.initialize_app()
 # db = firestore.client()
@@ -124,3 +130,4 @@ class Article:
 # id = "careers_arsenal_com_jobs_5434108-research-engineer"
 # article = Article.get(ref, id)
 # print(article.to_dict())
+# # article.vectorize(ref)
