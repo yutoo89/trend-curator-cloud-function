@@ -121,32 +121,3 @@ class ConversationRecord:
         query = ref.where(filter=FieldFilter("user_id", "==", user_id))
         docs = query.stream()
         return len(list(docs))
-
-
-# import os
-
-# import firebase_admin
-# from firebase_admin import firestore
-# import google.generativeai as genai
-# from datetime import datetime, timedelta
-
-# genai.configure(api_key=os.environ["GENAI_API_KEY"])
-# if not firebase_admin._apps:
-#     firebase_admin.initialize_app()
-# db = firestore.client()
-
-# # user_id="user123"、role="user"、message="こんにちは" を保存
-# ConversationRecord.record_message(db, user_id="user123", role="user", message="こんにちは")
-# ConversationRecord.record_message(db, user_id="user123", role="agent", message="こんにちは、どうしましたか？")
-
-# # 直近10件を ConversationRecord のリストとして取得
-# recent_records = ConversationRecord.get_recent_messages(db, "user123", limit=10)
-
-# # フォーマットした文字列で取得
-# conversation_text = ConversationRecord.get_recent_conversation_str(db, "user123", limit=10)
-# print(conversation_text)
-
-# # ConversationRecord.delete_all_conversations(db, "user123")
-
-# count = ConversationRecord.get_conversation_count(db, "user123")
-# print(count)  # 例: 10

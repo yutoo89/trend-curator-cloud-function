@@ -1,5 +1,6 @@
 import re
 from datetime import date
+from typing import Union
 from article import Article
 from conversation_record import ConversationRecord
 import google.generativeai as genai
@@ -53,7 +54,7 @@ class RAGAnswerGenerator:
         return False
 
     def generate_answer(
-        self, user_id: str, user_message: str | None, language_code: str
+        self, user_id: str, user_message: Union[str, None], language_code: str
     ) -> str:
         if not user_message:
             return self._generate_agent_message_only(user_id, language_code)
@@ -268,28 +269,3 @@ class RAGAnswerGenerator:
         else:
             # 2回目以上 → 今日のニュース (会話履歴には追加しない)
             return todays_news_message
-
-# import os
-
-# import firebase_admin
-# from firebase_admin import firestore
-# import google.generativeai as genai
-# from datetime import datetime, timedelta
-# from static_news import StaticNews
-# from google.cloud.firestore_v1.base_query import FieldFilter
-
-# genai.configure(api_key=os.environ["GENAI_API_KEY"])
-# if not firebase_admin._apps:
-#     firebase_admin.initialize_app()
-# db = firestore.client()
-
-# user_id = "user123"
-# # ConversationRecord.delete_all_conversations(db, user_id)
-
-# rag = RAGAnswerGenerator(db)
-# # result = rag.generate_answer(user_id, user_message = None, language_code ='ja')
-# result = rag.generate_answer(user_id, user_message = "Eclipsa Audioの詳細を教えて", language_code ='ja')
-# print(result)
-
-# conversation_text = ConversationRecord.get_recent_conversation_str(db, user_id, limit=10)
-# print(conversation_text)

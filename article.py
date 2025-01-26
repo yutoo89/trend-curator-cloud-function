@@ -126,28 +126,3 @@ class Article:
     def exists(ref, id):
         doc_ref = ref.document(id)
         return doc_ref.get().exists
-
-
-# import os
-# import firebase_admin
-# from firebase_admin import firestore
-# import google.generativeai as genai
-
-# genai.configure(api_key=os.environ["GENAI_API_KEY"])
-# if not firebase_admin._apps:
-#     firebase_admin.initialize_app()
-# db = firestore.client()
-
-# ref = Article.collection(db)
-# id = "blog_howardjohn_info_posts_go-tools-command_"
-# article = Article.get(ref, id)
-
-# cleaner = ArticleCleaner("gemini-1.5-flash")
-# print('before: ', article.keyword)
-# print('title: ', article.title)
-
-# article.import_body(ref, cleaner)
-
-# article = Article.get(ref, id)
-# print('after: ', article.keyword)
-# print('title: ', article.title)

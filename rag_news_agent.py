@@ -96,24 +96,3 @@ class RAGNewsAgent:
         if not articles:
             return "該当する記事が見つかりませんでした。"
         return self._generate_response(topic, articles, language_code)
-
-
-# # Example Usage
-# import firebase_admin
-# from firebase_admin import firestore
-
-# # GenAI 初期化
-# genai.configure(api_key=os.environ["GENAI_API_KEY"])
-
-# # Firestore 初期化
-# if not firebase_admin._apps:
-#     firebase_admin.initialize_app()
-# db = firestore.client()
-
-# agent = RAGNewsAgent("gemini-1.5-flash", db)
-# query = "最近のおすすめのAIツールは？"
-# response = agent.generate_response(
-#     "tst",
-#     query,
-# )
-# print("Generated Response:", response)
