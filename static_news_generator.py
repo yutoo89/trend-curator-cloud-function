@@ -90,6 +90,7 @@ class StaticNewsGenerator:
             static_news = StaticNews(
                 body=parsed_result["summary"],
                 sample_question=parsed_result["sample_question"],
+                language_code=language_code,
                 published=datetime.now(),
             )
             static_news.save(self.static_news_collection)

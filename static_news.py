@@ -1,6 +1,7 @@
 from datetime import datetime
 import uuid
 
+
 class StaticNews:
     COLLECTION = "static_news"
 
@@ -8,12 +9,14 @@ class StaticNews:
         self,
         body: str,
         sample_question: str,
+        language_code: str,
         published: datetime = None,
         id: str = None,
     ):
         self.id = id if id else str(uuid.uuid4())
         self.body = body
         self.sample_question = sample_question
+        self.language_code = language_code
         self.published = published if published else datetime.now()
 
     @staticmethod
@@ -22,6 +25,7 @@ class StaticNews:
             id=source.get("id"),
             body=source.get("body", ""),
             sample_question=source.get("sample_question", ""),
+            language_code=source.get("language_code", ""),
             published=source.get("published", datetime.now()),
         )
 
@@ -30,6 +34,7 @@ class StaticNews:
             "id": self.id,
             "body": self.body,
             "sample_question": self.sample_question,
+            "language_code": self.language_code,
             "published": self.published,
         }
 
