@@ -35,9 +35,7 @@ class StaticNewsGenerator:
         cutoff_date = datetime.now() - timedelta(days=7)
         query = self.static_news_collection.where(
             filter=FieldFilter("published", ">=", cutoff_date)
-        ).where(
-            filter=FieldFilter("language_code", "==", "en")
-        )
+        ).where(filter=FieldFilter("language_code", "==", "en"))
         docs = query.stream()
 
         exclude_ids = []
@@ -120,6 +118,10 @@ class StaticNewsGenerator:
         result_strings = []
         for doc in docs:
             article_dict = doc.to_dict()
+            # body の文字数が 200 以下の記事をスキップ
+            body = article_dict.get("body", "")
+            if len(body) <= 200:
+                continue
             # 必要な情報をタイトル文字列に
             article_txt = f"{article_dict.get('title', '')}"
             result_strings.append(article_txt)
@@ -162,21 +164,3 @@ class StaticNewsGenerator:
             raise ValueError(
                 "Failed to parse LLM response. Please check the prompt or the response format."
             )
-
-
-# import os
-
-# import firebase_admin
-# from firebase_admin import firestore
-# import google.generativeai as genai
-# from datetime import datetime, timedelta
-
-# genai.configure(api_key=os.environ["GENAI_API_KEY"])
-# if not firebase_admin._apps:
-#     firebase_admin.initialize_app()
-# db = firestore.client()
-
-# language_code = "ja"
-# generator = StaticNewsGenerator(db, "gemini-1.5-flash")
-# result = generator.generate_news(language_code)
-# print(result)
