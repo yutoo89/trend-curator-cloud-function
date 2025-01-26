@@ -5,8 +5,8 @@ import re
 
 CLEAN_TEXT_SCHEMA = {
     "type": "OBJECT",
-    "properties": {"clean_text": {"type": "STRING"}},
-    "required": ["clean_text"],
+    "properties": {"clean_text": {"type": "STRING"}, "keyword": {"type": "STRING"}},
+    "required": ["clean_text", "keyword"],
 }
 
 
@@ -17,9 +17,12 @@ class ArticleCleaner:
     def create_prompt(self, raw_text: str, title: str):
         prompt_lines = [
             "以下の指示に従い、スクレイピングで取得した記事を整形してください。",
-            "- HTMLタグ、スクリプト、広告文、ページナビゲーション等の不要な要素は削除する"
+            "- HTMLタグ、スクリプト、広告文、ページナビゲーション等の不要な要素は削除する",
             "- タイトルと無関係な内容は削除し、記事本文のみを残す",
             "- 改行や余分なスペースは削除する",
+            "- 記事に含まれる最も核心的な固有名詞（ツールや機能など）をkeywordとしてひとつだけ抽出する",
+            "  - 良い例: 'Copilot GitHub'、'Cline VSCode'、'LlamaIndex'",
+            "  - 悪い例: 'テスト自動化'、'API連携'、'生成AI'",
             "- 結果にタイトルは含めず、整形後の本文のみを返す",
             "\n",
             f"[title]\n{title}",
@@ -45,11 +48,8 @@ class ArticleCleaner:
                 response_schema=CLEAN_TEXT_SCHEMA,
             ),
         )
+        parsed_result = json.loads(response.text)
+        clean_text = parsed_result["clean_text"]
+        keyword = parsed_result["keyword"]
+        return {"clean_text": clean_text, "keyword": keyword}
 
-        try:
-            parsed_result = json.loads(response.text)
-            clean_text = parsed_result["clean_text"]
-            return clean_text
-        except Exception as e:
-            print(f"Failed to parse cleaned text response: {e}")
-            return ""

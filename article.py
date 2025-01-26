@@ -21,6 +21,7 @@ class Article:
         url: str,
         source: str = None,
         body: str = None,
+        keyword: str = None,
         published: datetime = None,
         embedding: Vector = None,
         id: str = None,
@@ -31,6 +32,7 @@ class Article:
         self.summary = summary
         self.body = body
         self.url = url
+        self.keyword = keyword
         self.published = published if published else datetime.now()
         self.embedding = embedding
 
@@ -59,15 +61,18 @@ class Article:
 
     def import_body(self, ref, cleaner: ArticleCleaner):
         body = self.body
-        if body:
+        keyword = self.keyword
+        if body and keyword:
             return
         try:
             body = ArticleContentFetcher.fetch(self.url)
             body = cleaner.clean_text(body)[: self.MAX_LENGTH]
-            body = cleaner.llm_clean_text(body, self.title)
+            clean_result = cleaner.llm_clean_text(body, self.title)
+            body = clean_result.get("clean_text", "")
+            keyword = clean_result.get("keyword", "")
         except Exception as e:
             print(f"[ERROR] Failed to fetch or clean body for URL '{self.url}': {e}")
-        self.update(ref, {"body": body})
+        self.update(ref, {"body": body, "keyword": keyword})
 
     @staticmethod
     def from_dict(source):
@@ -77,6 +82,7 @@ class Article:
             url=source.get("url", ""),
             summary=source.get("summary", ""),
             body=source.get("body"),
+            keyword=source.get("keyword"),
             embedding=source.get("embedding"),
             published=source.get("published", datetime.now()),
             source=source.get("source"),
@@ -89,6 +95,7 @@ class Article:
             "url": self.url,
             "summary": self.summary,
             "body": self.body,
+            "keyword": self.keyword,
             "embedding": self.embedding,
             "published": self.published,
             "source": self.source,
@@ -132,7 +139,15 @@ class Article:
 # db = firestore.client()
 
 # ref = Article.collection(db)
-# id = "careers_arsenal_com_jobs_5434108-research-engineer"
+# id = "blog_howardjohn_info_posts_go-tools-command_"
 # article = Article.get(ref, id)
-# print(article.to_dict())
-# # article.vectorize(ref)
+
+# cleaner = ArticleCleaner("gemini-1.5-flash")
+# print('before: ', article.keyword)
+# print('title: ', article.title)
+
+# article.import_body(ref, cleaner)
+
+# article = Article.get(ref, id)
+# print('after: ', article.keyword)
+# print('title: ', article.title)
