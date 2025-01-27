@@ -1,12 +1,16 @@
+import os
+import re
+import json
 from datetime import datetime
+from typing import List
 from firebase_admin import firestore
 import google.generativeai as genai
 from google.cloud.firestore_v1.vector import Vector
 from datetime import datetime
-import json
-import re
 from article_content_fetcher import ArticleContentFetcher
 from article_cleaner import ArticleCleaner
+from article_summary_generator import ArticleSummaryGenerator
+from web_searcher import WebSearcher
 
 
 class Article:
@@ -143,3 +147,49 @@ class Article:
     def exists(ref, id):
         doc_ref = ref.document(id)
         return doc_ref.get().exists
+
+    @staticmethod
+    def create_by_query(query: str) -> List['Article']:
+        google_custom_search_api_key = os.environ["GOOGLE_CUSTOM_SEARCH_API_KEY"]
+        google_search_cse_id = os.environ["GOOGLE_SEARCH_CSE_ID"]
+        searcher = WebSearcher(google_custom_search_api_key, google_search_cse_id)
+        content_fetcher = ArticleContentFetcher()
+        cleaner = ArticleCleaner('gemini-2.0-flash-exp')
+        summary_generator = ArticleSummaryGenerator('gemini-2.0-flash-exp')
+        ref = Article.collection(firestore.client())
+
+        # Perform the search and get the top 3 results
+        search_results = searcher.search(query, num_results=3)
+        articles = []
+
+        for result in search_results:
+            title = result["title"]
+            url = result["url"]
+
+            try:
+                # Fetch the article content
+                raw_content = content_fetcher.fetch(url)
+                if not raw_content:
+                    continue
+
+                # Clean the content
+                clean_result = cleaner.llm_clean_text(raw_content, title)
+                clean_text = clean_result.get("clean_text", "")
+                keyword = clean_result.get("keyword", "")
+                summary = summary_generator.generate_summary(title, clean_text)
+
+                # Create an Article instance
+                article = Article(
+                    title=title,
+                    summary=summary,
+                    url=url,
+                    body=clean_text,
+                    keyword=keyword,
+                )
+                article.save(ref)
+                articles.append(article)
+
+            except Exception as e:
+                print(f"Failed to process article at {url}: {e}")
+
+        return articles
