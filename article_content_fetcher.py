@@ -10,7 +10,7 @@ class ArticleContentFetcher:
     @staticmethod
     def fetch(url: str):
         try:
-            response = requests.get(url, headers=ArticleContentFetcher.HEADERS)
+            response = requests.get(url, headers=ArticleContentFetcher.HEADERS, timeout=30)
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "html.parser")
             paragraphs = soup.find_all("p")

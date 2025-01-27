@@ -11,8 +11,9 @@ from article_cleaner import ArticleCleaner
 
 class Article:
     COLLECTION = "articles"
-    MAX_LENGTH = 3000
+    MAX_LENGTH = 2000
     EMBEDDING_MODEL = "models/text-embedding-004"
+    BYTE_LIMIT = 3000  # embed_contentのペイロードサイズ上限が10,000バイト
 
     def __init__(
         self,
@@ -40,9 +41,25 @@ class Article:
         data = {
             "title": self.title,
             "summary": self.summary,
+            "body": self.body if self.body else "",
         }
-        if self.body:
-            data["body"] = self.body
+
+        while True:
+            json_data = json.dumps(data, ensure_ascii=False)
+            byte_size = len(json_data.encode("utf-8"))
+
+            if byte_size <= self.BYTE_LIMIT:
+                break
+
+            if data["body"]:
+                data["body"] = data["body"][: len(data["body"]) - 100]
+            elif data["summary"]:
+                data["summary"] = data["summary"][: len(data["summary"]) - 100]
+            elif data["title"]:
+                data["title"] = data["title"][: len(data["title"]) - 100]
+            else:
+                break
+
         return json.dumps(data, ensure_ascii=False)
 
     @staticmethod
