@@ -26,6 +26,7 @@ class StaticNewsGenerator:
         self.static_news_collection = StaticNews.collection(db)
         self.model = genai.GenerativeModel(model_name)
 
+    # TODO: ここで毎回検索せずstatic news作ったときに検索クエリを生成する
     def _get_exclude_article_ids(self) -> list[str]:
         """
         過去7日間の StaticNews を取得して body をベクトル化。
@@ -110,7 +111,7 @@ class StaticNewsGenerator:
 
         if exclude_ids:
             # 指定された id を除外する条件
-            query = query.where(filter=FieldFilter("id", "not-in", exclude_ids))
+            query = query.where(filter=FieldFilter("id", "not-in", exclude_ids[:10]))
 
         docs = (
             query.order_by("published", direction=firestore.Query.DESCENDING)
