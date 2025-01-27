@@ -7,3 +7,4 @@ firebase-admin
 google-api-python-client
 beautifulsoup4
 google-cloud-pubsub
+feedparser

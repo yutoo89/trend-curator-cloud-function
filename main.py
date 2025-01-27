@@ -11,9 +11,16 @@ from news_topic_selector import NewsTopicSelector
 from access_updater import AccessUpdater
 from web_searcher import WebSearcher
 from user_trend_update_publisher import UserTrendUpdatePublisher
+from rss_article_uploader import RssArticleUploader
 from article import Article
 import base64
 import json
+from article_cleaner import ArticleCleaner
+from static_news_generator import StaticNewsGenerator
+
+# TODO:
+# - ベクトル保存処理をfirestoreに置き換え
+# - RAGの回答生成処理をfirestoreに置き換え
 
 # GenAI 初期化
 genai.configure(api_key=os.environ["GENAI_API_KEY"])
@@ -69,17 +76,22 @@ def on_topic_created(cloud_event: CloudEvent) -> None:
     selector = NewsTopicSelector("gemini-1.5-flash", searcher)
     news.update(selector)
 
-    # 4. RAG用に記事を保存
-    # Article.bulk_create(db, news.articles)
-
 
 @functions_framework.cloud_event
 def on_trend_update_started(cloud_event):
     """
     trend-updatesトピックにメッセージが送信された時に実行
     """
+    # TODO: RAG Agentを使った実装に置き換えたら下記は削除
+    # UserTrendUpdatePublisher().fetch_and_publish()
 
-    UserTrendUpdatePublisher().fetch_and_publish()
+    uploader = RssArticleUploader("gemini-1.5-flash", db)
+    uploader.bulk_upload()
+
+    generator = StaticNewsGenerator(db, "gemini-1.5-flash")
+    for language_code in ["ja", "en"]:
+        static_news = generator.generate_news(language_code)
+        print(f"[INFO] Created static news: {static_news.body}")
 
 
 @functions_framework.cloud_event
@@ -109,9 +121,6 @@ def on_user_trend_update_started(cloud_event):
     news = News.get(db, user_id)
     news.update(selector)
 
-    # RAG用に記事を保存
-    # Article.bulk_create(db, news.articles)
-
 
 @functions_framework.cloud_event
 def on_article_created(cloud_event: CloudEvent) -> None:
@@ -126,11 +135,10 @@ def on_article_created(cloud_event: CloudEvent) -> None:
     doc_path = doc_event_data.value.name
     doc_id = doc_path.split("/")[-1]
 
-    fields = doc_event_data.value.fields
+    article_collection = Article.collection(db)
+    article = Article.get(article_collection, doc_id)
 
-    title = fields["title"].string_value if "title" in fields else ""
-    body = fields["body"].string_value if "body" in fields else ""
-    url = fields["url"].string_value if "url" in fields else ""
-    article_ref = db.collection(Article.COLLECTION_NAME).document(doc_id)
-    article = Article(title, body, url, article_ref)
-    article.vectorize()
+    article.import_body(article_collection, ArticleCleaner("gemini-1.5-flash"))
+    article.vectorize(article_collection)
+
+    print(f"[INFO] Article vectorize success: {article.title}")
