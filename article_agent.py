@@ -13,8 +13,7 @@ from article_summary_generator import ArticleSummaryGenerator
 from web_searcher import WebSearcher
 from article import Article
 from google.cloud.firestore_v1.base_vector_query import DistanceMeasure
-from openai import OpenAI, AssistantEventHandler
-from typing_extensions import override
+from openai import OpenAI
 
 
 # GenAI 初期化
@@ -39,8 +38,8 @@ class ArticleAgent:
         self,
         db: firestore.Client,
         web_searcher: WebSearcher,
+        user_id: str,
         model="gpt-4o-mini",
-        instructions="You are an AI that answers user queries about articles.",
     ):
         self.client = OpenAI()
         self.db = db
@@ -49,10 +48,16 @@ class ArticleAgent:
         self.article_cleaner = ArticleCleaner(GEMINI_MODEL)
         self.summary_generator = ArticleSummaryGenerator(GEMINI_MODEL)
         self.article_collection = Article.collection(self.db)
+        self.user_id = user_id
 
-        # Assistant(=モデル)を作成
         self.assistant = self.client.beta.assistants.create(
-            instructions=instructions,
+            instructions=(
+                "あなたはエンジニアに最新の技術情報を伝えるアナウンサーです。\n"
+                "以下の指示に従い、ユーザーから提供された質問への応答を作成してください。\n"
+                "- 抽象的な表現は避け、具体的なツール名や企業名、専門用語を使用して詳細に伝えること\n"
+                "- 日時や企業名、情報源などの詳細は省略せず、具体的に伝えること\n"
+                "- URLやソースコード、括弧など自然に発話できない表現は避けること\n"
+            ),
             model=model,
             tools=[
                 {
@@ -79,96 +84,66 @@ class ArticleAgent:
                         "description": "Get the recent conversation history for the user",
                         "parameters": {
                             "type": "object",
-                            "properties": {
-                                "user_id": {
-                                    "type": "string",
-                                    "description": "The user ID for which we want to retrieve past messages",
-                                },
-                            },
-                            "required": ["user_id"],
+                            "properties": {},
+                            "required": [],
                         },
                     },
                 },
             ],
         )
 
-    def answer_question(self, user_id: str, question: str) -> str:
-        """
-        ユーザーIDと質問を受け取り、Assistantを用いて回答を生成する。
-        必要に応じて search_articles / fetch_recent_messages をツールとして呼び出して利用する。
-        (ストリーミングは使わず、runのstatusをポーリングして最終回答を取得する)
-        """
-
-        # 1. 新しいスレッドを作成（会話単位の管理）
+    def answer_question(self, question: str) -> str:
         thread = self.client.beta.threads.create()
-
-        # 2. ユーザーからのメッセージをスレッドに追加
         self.client.beta.threads.messages.create(
-            thread_id=thread.id,
-            role="user",
-            content=question,
+            thread_id=thread.id, role="user", content=question
         )
-
-        # 3. ランを作成
         run = self.client.beta.threads.runs.create(
-            thread_id=thread.id,
-            assistant_id=self.assistant.id,
+            thread_id=thread.id, assistant_id=self.assistant.id
+        )
+        return self._poll_run_until_done(run)
+
+    def _poll_run_until_done(self, run) -> str:
+        while True:
+            run = self.client.beta.threads.runs.retrieve(
+                thread_id=run.thread_id, run_id=run.id
+            )
+            if run.status == "requires_action":
+                self._handle_tool_call(run)
+            elif run.status == "completed":
+                return self._get_final_message(run.thread_id)
+            elif run.status in ("cancelled", "failed", "expired", "incomplete"):
+                return f"[Run ended. status={run.status}]"
+            time.sleep(1)
+
+    def _handle_tool_call(self, run):
+        tool_outputs = []
+        for tool_call in run.required_action.submit_tool_outputs.tool_calls:
+            function_name = tool_call.function.name
+            arguments = json.loads(tool_call.function.arguments)
+            print("function_name: ", function_name)
+            print("arguments: ", arguments)
+
+            if function_name == "search_articles":
+                result = self.search_articles(arguments["query"])
+            elif function_name == "fetch_recent_messages":
+                result = self.fetch_recent_messages()
+            else:
+                result = "[Unknown tool call]"
+
+            tool_outputs.append({"tool_call_id": tool_call.id, "output": result})
+
+        self.client.beta.threads.runs.submit_tool_outputs(
+            thread_id=run.thread_id, run_id=run.id, tool_outputs=tool_outputs
         )
 
-        # 4. イベントハンドラー (ツール呼び出し用) を用意
-        event_handler = ArticleToolsEventHandler(self, self.client, thread.id)
-
-        # 5. status が completed になるまでポーリング
-        #    - 途中で requires_action になったらツール呼び出しを同期的に処理
-        final_answer = self._poll_run_until_done(run, event_handler)
-
-        return final_answer
-
-    def _poll_run_until_done(self, run, event_handler) -> str:
-        """run.status が completed になるまでポーリングし、最終アシスタントメッセージを返す"""
-        while True:
-            # 最新のRunステータスを取得（get→retrieve に変更）
-            run = self.client.beta.threads.runs.retrieve(
-                thread_id=run.thread_id,
-                run_id=run.id,
-            )
-            status = run.status
-            print(f"Current run status: {status}")
-
-            if status == "requires_action":
-                # ツール呼び出しを処理
-                if run.required_action and run.required_action.submit_tool_outputs:
-                    event_handler.handle_requires_action(run)
-                time.sleep(1)
-
-            elif status == "completed":
-                # 最終回答を取得して返す
-                return self._get_final_assistant_message(run.thread_id)
-
-            elif status in ("queued", "in_progress"):
-                # 実行中 → 少し待ってから再チェック
-                time.sleep(1)
-
-            elif status in ("cancelled", "failed", "expired", "incomplete"):
-                # 失敗 or 中断
-                return f"[Run ended. status={status}]"
-            else:
-                # 想定外のステータス
-                return f"[Run ended. Unexpected status={status}]"
-
-    def _get_final_assistant_message(self, thread_id: str) -> str:
-        """スレッド内の最後のassistantメッセージを取得して返す"""
+    def _get_final_message(self, thread_id: str) -> str:
         messages = self.client.beta.threads.messages.list(thread_id=thread_id)
-
-        # 後ろから探して最初に見つかったassistantロールのメッセージを返す
         for msg in reversed(messages.data):
             if msg.role == "assistant":
-                # msg.content[0].text.value のように取り出す (バージョンにより差異あり)
                 return msg.content[0].text.value
         return "[No assistant message found]"
 
     def create_by_query(self, query: str) -> List[Article]:
-        # Perform the search and get the top 3 results
         search_results = self.web_searcher.search(query, num_results=3)
         articles = []
 
@@ -177,18 +152,15 @@ class ArticleAgent:
             url = result["url"]
 
             try:
-                # Fetch the article content
                 raw_content = self.content_fetcher.fetch(url)
                 if not raw_content:
                     continue
 
-                # Clean the content
                 clean_result = self.article_cleaner.llm_clean_text(raw_content, title)
                 clean_text = clean_result.get("clean_text", "")
                 keyword = clean_result.get("keyword", "")
                 summary = self.summary_generator.generate_summary(title, clean_text)
 
-                # Create an Article instance
                 article = Article(
                     title=title,
                     summary=summary,
@@ -205,9 +177,6 @@ class ArticleAgent:
         return articles
 
     def search_articles(self, query: str) -> str:
-        """
-        クエリに関連する記事をベクトル検索し、上位3件をフォーマットして返す。
-        """
         query_vector = genai.embed_content(
             model=Article.EMBEDDING_MODEL, content=query
         )["embedding"]
@@ -247,9 +216,7 @@ class ArticleAgent:
                 )
             else:
                 articles_section += (
-                    f"title: {title}\n"
-                    f"url: {url}\n"
-                    f"summary: {summary[:500]}\n\n"
+                    f"title: {title}\n" f"url: {url}\n" f"summary: {summary[:500]}\n\n"
                 )
         return articles_section
 
@@ -257,66 +224,14 @@ class ArticleAgent:
         url = url.split("?")[0]
         return url
 
-    def fetch_recent_messages(self, user_id: str) -> str:
+    def fetch_recent_messages(self) -> str:
         recent_records = ConversationRecord.get_recent_messages(
-            self.db, user_id, limit=10
+            self.db, self.user_id, limit=10
         )
-        conversation_text = "\n".join([f"{r.role}: {r.message}" for r in recent_records])
+        conversation_text = "\n".join(
+            [f"{r.role}: {r.message}" for r in recent_records]
+        )
         return conversation_text
-
-
-class ArticleToolsEventHandler(AssistantEventHandler):
-    """
-    ツール呼び出しを処理するためのクラス。
-    ただしストリーミングは使わず、`requires_action` のたびに同期呼び出しを行う。
-    """
-
-    def __init__(self, agent: ArticleAgent, client: OpenAI, thread_id: str):
-        super().__init__()
-        self.agent = agent
-        self.client = client
-        self.thread_id = thread_id
-        self.responses = []
-
-    def handle_requires_action(self, run):
-        """
-        run.required_action.submit_tool_outputs にツール呼び出し候補が入っているので処理し、
-        同期メソッドsubmit_tool_outputsで結果を送信する
-        """
-        tool_outputs = []
-        action = run.required_action.submit_tool_outputs
-
-        for tool_call in action.tool_calls:
-            function_name = tool_call.function.name
-            arguments = json.loads(tool_call.function.arguments)
-
-            print(f"function_name: {function_name}")
-            print(f"args: {arguments}")
-
-            if function_name == "search_articles":
-                query_string = arguments["query"]
-                result = self.agent.search_articles(query_string)
-                tool_outputs.append({"tool_call_id": tool_call.id, "output": result})
-
-            elif function_name == "fetch_recent_messages":
-                target_user_id = arguments["user_id"]
-                result = self.agent.fetch_recent_messages(target_user_id)
-                tool_outputs.append({"tool_call_id": tool_call.id, "output": result})
-
-        self._submit_tool_outputs(tool_outputs, run.id)
-
-    def _submit_tool_outputs(self, tool_outputs, run_id):
-        """
-        同期的にツール実行の結果をサーバーに送信し、Runの状態を更新する。
-        返り値は Runオブジェクト。
-        """
-        run_response = self.client.beta.threads.runs.submit_tool_outputs(
-            thread_id=self.thread_id,
-            run_id=run_id,
-            tool_outputs=tool_outputs,
-        )
-        # ここでは「ツールを送信した」ログだけを記録する
-        self.responses.append(f"[Tool outputs submitted; run status: {run_response.status}]")
 
 
 # ==============================
@@ -328,13 +243,13 @@ class ArticleToolsEventHandler(AssistantEventHandler):
 #     web_searcher = WebSearcher(google_custom_search_api_key, google_search_cse_id)
 
 #     # インスタンス作成
-#     article_assistant = ArticleAgent(db=db, web_searcher=web_searcher)
+#     user_id = "test_user"
+#     article_assistant = ArticleAgent(db=db, web_searcher=web_searcher, user_id=user_id)
 
 #     # 質問を投げる
-#     user_id = "test_user"
-#     question = "最近のAI技術ニュースを教えてください。"
+#     question = "前回の質問の回答が曖昧だったので、もう一度詳細に回答してください"
 
-#     response = article_assistant.answer_question(user_id, question)
+#     response = article_assistant.answer_question(question)
 
 #     # 結果を表示
 #     print("Assistant Response:\n", response)
