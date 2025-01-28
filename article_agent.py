@@ -1,6 +1,7 @@
 import os
 import json
 import time
+from datetime import datetime
 from typing import List
 from conversation_record import ConversationRecord
 import firebase_admin
@@ -32,6 +33,8 @@ google_search_cse_id = os.environ["GOOGLE_SEARCH_CSE_ID"]
 GEMINI_MODEL = "gemini-2.0-flash-exp"
 OPENAI_MODEL = "gpt-4o-mini"
 
+OPENAI_ASSISTANTS_ID = "asst_HnywQuKkCXMIeSIOVqXVKqnz"
+
 
 class ArticleAgent:
     def __init__(
@@ -49,8 +52,23 @@ class ArticleAgent:
         self.summary_generator = ArticleSummaryGenerator(GEMINI_MODEL)
         self.article_collection = Article.collection(self.db)
         self.user_id = user_id
+        self.assistant_collection = self.db.collection("assistants")
+        self.assistant = self._get_or_create_assistant(model)
 
-        self.assistant = self.client.beta.assistants.create(
+    def _get_or_create_assistant(self, model: str):
+        """
+        Firestoreに保存されたアシスタントIDを取得または新規作成。
+        """
+        
+        try:
+            assistant = self.client.beta.assistants.retrieve(OPENAI_ASSISTANTS_ID)
+            print(f"Retrieve assistant: {assistant.id}")
+            return assistant
+        except Exception as e:
+            print(f"Failed to retrieve OpenAI assistant {OPENAI_ASSISTANTS_ID}: {e}")
+
+        today = datetime.now().strftime("%Y_%m_%d")
+        assistant = self.client.beta.assistants.create(
             instructions=(
                 "あなたはエンジニアに最新の技術情報を伝えるアナウンサーです。\n"
                 "以下の指示に従い、ユーザーから提供された質問への応答を作成してください。\n"
@@ -91,6 +109,10 @@ class ArticleAgent:
                 },
             ],
         )
+
+        self.assistant_collection.document(today).set({"assistant_id": assistant.id})
+        print(f"Created new assistant: {assistant.id}")
+        return assistant
 
     def answer_question(self, question: str) -> str:
         thread = self.client.beta.threads.create()
@@ -247,7 +269,7 @@ class ArticleAgent:
 #     article_assistant = ArticleAgent(db=db, web_searcher=web_searcher, user_id=user_id)
 
 #     # 質問を投げる
-#     question = "前回の質問の回答が曖昧だったので、もう一度詳細に回答してください"
+#     question = "OpenAIのOperatorについて詳しく教えてください"
 
 #     response = article_assistant.answer_question(question)
 
