@@ -16,14 +16,14 @@ OPENAI_TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "search_articles",
-            "description": "Search articles relevant to the query from the article DB",
+            "name": "vector_db_article_search",
+            "description": "ベクトルデータベースを用いてクエリに関連する記事を検索し、テキストとして返す",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "Search query string to find related articles",
+                        "description": "検索に用いるクエリ文字列",
                     },
                 },
                 "required": ["query"],
@@ -33,8 +33,8 @@ OPENAI_TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "fetch_recent_messages",
-            "description": "Get the recent conversation history for the user",
+            "name": "get_recent_conversation_history",
+            "description": "ユーザーとの直近の会話履歴を取得し、テキストとして返します。",
             "parameters": {
                 "type": "object",
                 "properties": {},
@@ -45,17 +45,97 @@ OPENAI_TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "create_by_query",
-            "description": "Perform a web search for the query and create new articles in Firestore",
+            "name": "get_article_title_url_list",
+            "description": "指定したクエリでウェブ検索を行い、検索結果のタイトルとURLのリストを返す",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "Search query string to create articles from.",
+                        "description": "ウェブ検索に用いるクエリ文字列",
                     },
                 },
                 "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_article_from_title_url",
+            "description": "タイトルとURLを渡すと、ページ内容を要約したテキストを返す",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "記事のタイトル"
+                    },
+                    "url": {
+                        "type": "string",
+                        "description": "記事のURL"
+                    },
+                },
+                "required": ["title", "url"],
+            },
+        },
+    },
+]
+
+
+NEWS_GENERATION_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "vector_db_article_search",
+            "description": "ベクトルデータベースを用いてクエリに関連する記事を検索し、テキストとして返す",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "検索に用いるクエリ文字列",
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_article_title_url_list",
+            "description": "指定したクエリでウェブ検索を行い、検索結果のタイトルとURLのリストを返す",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "ウェブ検索に用いるクエリ文字列",
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_article_from_title_url",
+            "description": "タイトルとURLを渡すと、ページ内容を要約したテキストを返す",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "記事のタイトル"
+                    },
+                    "url": {
+                        "type": "string",
+                        "description": "記事のURL"
+                    },
+                },
+                "required": ["title", "url"],
             },
         },
     },
@@ -70,6 +150,7 @@ def format_articles(articles: list) -> str:
     """
     検索結果のリストをフォーマットして文字列にまとめる。
     """
+    
     articles_section = ""
     for index, article in enumerate(articles):
         title = article.get("title", "")
@@ -78,7 +159,6 @@ def format_articles(articles: list) -> str:
         body = article.get("body", "")
 
         if index == 0:
-            # 最初の1件だけ本文を多めに表示
             articles_section += (
                 f"title: {title}\n"
                 f"url: {url}\n"
@@ -86,21 +166,16 @@ def format_articles(articles: list) -> str:
                 f"body: {body[:3000]}\n\n"
             )
         else:
-            # 2件目以降はサマリーを短めに
             articles_section += (
                 f"title: {title}\n" f"url: {url}\n" f"summary: {summary[:500]}\n\n"
             )
     return articles_section
 
 
-def search_articles(article_collection, query: str) -> str:
-    """
-    Embedding を用いて Firestore (Vector) から記事を検索し、
-    フォーマットした文字列を返す。
-    """
-    query_vector = genai.embed_content(model=Article.EMBEDDING_MODEL, content=query)[
-        "embedding"
-    ]
+def vector_db_article_search(article_collection, query: str) -> str:
+    print(f"Calling vector_db_article_search with query: {query}")
+    
+    query_vector = genai.embed_content(model=Article.EMBEDDING_MODEL, content=query)["embedding"]
 
     vector_query = article_collection.select(
         ["id", "title", "summary", "body", "url", "published"]
@@ -120,60 +195,62 @@ def search_articles(article_collection, query: str) -> str:
     return format_articles(articles)
 
 
-def fetch_recent_messages(db: firestore.Client, user_id: str) -> str:
-    """
-    Firestore に保存されている会話履歴から指定件数を取得して整形。
-    """
+def get_conversation_history(db: firestore.Client, user_id: str) -> str:
+    print(f"Calling get_conversation_history with user_id: {user_id}")
+    
     recent_records = ConversationRecord.get_recent_messages(db, user_id, limit=10)
     conversation_text = "\n".join([f"{r.role}: {r.message}" for r in recent_records])
     return conversation_text
 
 
-def create_by_query(
-    db: firestore.Client,
+def get_article_title_url_list(
     web_searcher: WebSearcher,
+    query: str,
+) -> str:
+    print(f"Calling get_article_title_url_list with query: {query}")
+    search_results = web_searcher.search(query, num_results=5)
+    results_list = []
+    for result in search_results:
+        results_list.append({"title": result["title"], "url": result["url"]})
+    return json.dumps(results_list, ensure_ascii=False)
+
+
+def get_article_from_title_url(
     content_fetcher: ArticleContentFetcher,
     article_cleaner: ArticleCleaner,
     summary_generator: ArticleSummaryGenerator,
     article_collection,
-    query: str,
+    title: str,
+    url: str,
 ) -> str:
-    """
-    指定したクエリを元にウェブ検索を行い、
-    記事を作成して Firestore に保存。
-    保存した記事のタイトル一覧を返す。
-    """
-    search_results = web_searcher.search(query, num_results=3)
-    created_titles = []
+    print(f"Calling create_article_from_title_url with query: {title}")
+    try:
+        raw_content = content_fetcher.fetch(url)
+        if not raw_content:
+            return f"No content fetched from {url}."
 
-    for result in search_results:
-        title = result["title"]
-        url = result["url"]
+        clean_result = article_cleaner.llm_clean_text(raw_content, title)
+        clean_text = clean_result.get("clean_text", "")
+        keyword = clean_result.get("keyword", "")
 
-        try:
-            raw_content = content_fetcher.fetch(url)
-            if not raw_content:
-                continue
+        summary = summary_generator.generate_summary(title, clean_text)
 
-            clean_result = article_cleaner.llm_clean_text(raw_content, title)
-            clean_text = clean_result.get("clean_text", "")
-            keyword = clean_result.get("keyword", "")
-            summary = summary_generator.generate_summary(title, clean_text)
+        article = Article(
+            title=title,
+            summary=summary,
+            url=url,
+            body=clean_text,
+            keyword=keyword,
+        )
+        article.save(article_collection)
 
-            article = Article(
-                title=title,
-                summary=summary,
-                url=url,
-                body=clean_text,
-                keyword=keyword,
-            )
-            article.save(article_collection)
-            created_titles.append(title)
+        formatted_article = (
+            f"title: {title}\n"
+            f"url: {url}\n"
+            f"summary: {summary}\n"
+        )
+        return formatted_article
 
-        except Exception as e:
-            print(f"Failed to process article at {url}: {e}")
-
-    if created_titles:
-        return f"Created articles:\n" + "\n".join(created_titles)
-    else:
-        return "No articles were created."
+    except Exception as e:
+        print(f"Failed to process article at {url}: {e}")
+        return f"Failed to process article at {url}: {str(e)}"
