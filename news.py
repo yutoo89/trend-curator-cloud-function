@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 from firebase_admin import firestore
+from google.cloud.firestore_v1.base_query import FieldFilter
 
 
 class News:
@@ -50,3 +51,45 @@ class News:
     @staticmethod
     def get_collection(db: firestore.Client):
         return db.collection(News.COLLECTION)
+
+    @staticmethod
+    def get_recent_news(db: firestore.Client, language_code: str) -> str:
+        collection_ref = News.get_collection(db)
+        query = (
+            collection_ref.where(
+                filter=FieldFilter("language_code", "==", language_code)
+            )
+            .order_by("published", direction="DESCENDING")
+            .limit(3)
+        )
+
+        docs = query.stream()
+        result_strings = []
+
+        for doc in docs:
+            news_dict = doc.to_dict()
+            published_date = news_dict.get("published", datetime.now()).strftime(
+                "%Y-%m-%d %H:%M UTC"
+            )
+            content = news_dict.get("content", "")
+            result_strings.append(f"{published_date}\n{content}")
+
+        return "\n\n".join(result_strings)
+
+    @staticmethod
+    def get_latest_news(db: firestore.Client, language_code: str) -> "News":
+        """
+        指定した言語の最新ニュースを1件取得してNewsインスタンスを返す
+        """
+        collection_ref = News.get_collection(db)
+        query = (
+            collection_ref.where(
+                filter=FieldFilter("language_code", "==", language_code)
+            )
+            .order_by("published", direction="DESCENDING")
+            .limit(1)
+        )
+        docs = query.stream()
+        for doc in docs:
+            return News.from_dict(doc.to_dict())
+        return None

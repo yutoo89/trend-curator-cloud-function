@@ -123,7 +123,7 @@ class User:
         self.save(User.collection(db))
 
     def create_question(
-        self, db, question_text: str, answer_status: str = ANSWER_STATUS["NO_QUESTION"]
+        self, db, question_text: str, answer_status: str = ANSWER_STATUS["IN_PROGRESS"]
     ):
         question = Question(
             user_id=self.id,
@@ -134,44 +134,55 @@ class User:
         question.save(db)
         return question
 
-    def get_questions(self, db) -> Question:
-        doc = Question.collection(db).document(self.id).get()
-        data = doc.to_dict()
-        return Question.from_dict(data)
+    def get_question(self, db) -> Question:
+        if self._cached_question is None:
+            doc = Question.collection(db).document(self.id).get()
+            data = doc.to_dict()
+            self._cached_question = Question.from_dict(data) if data else None
+        return self._cached_question
+
+    def get_answer_status(self, db) -> str:
+        if self._cached_answer_status is None:
+            question = self.get_question(db)
+            if not question:
+                self._cached_answer_status = ANSWER_STATUS["NO_QUESTION"]
+            else:
+                self._cached_answer_status = question.answer_status
+        return self._cached_answer_status
 
 
-import os
-import firebase_admin
-from firebase_admin import firestore
+# import os
+# import firebase_admin
+# from firebase_admin import firestore
 
-# Firestore 初期化
-if not firebase_admin._apps:
-    firebase_admin.initialize_app()
-db = firestore.client()
+# # Firestore 初期化
+# if not firebase_admin._apps:
+#     firebase_admin.initialize_app()
+# db = firestore.client()
 
-# Google Custom Search
-google_custom_search_api_key = os.environ["GOOGLE_CUSTOM_SEARCH_API_KEY"]
-google_search_cse_id = os.environ["GOOGLE_SEARCH_CSE_ID"]
+# # Google Custom Search
+# google_custom_search_api_key = os.environ["GOOGLE_CUSTOM_SEARCH_API_KEY"]
+# google_search_cse_id = os.environ["GOOGLE_SEARCH_CSE_ID"]
 
-db = firestore.Client()
-user_id = "test_user"
-user_ref = User.collection(db)
+# db = firestore.Client()
+# user_id = "test_user"
+# user_ref = User.collection(db)
 
-# ユーザーを取得または新規作成
-user = User.get_or_create(user_ref, user_id)
+# # ユーザーを取得または新規作成
+# user = User.get_or_create(user_ref, user_id)
 
-# # 1. today_usage_countのテスト
-# usage_count = user.today_usage_count(db)
-# print(f"Usage Count: {usage_count}")
+# # # 1. today_usage_countのテスト
+# # usage_count = user.today_usage_count(db)
+# # print(f"Usage Count: {usage_count}")
 
-# # 2. add_conversationのテスト
-# user.add_conversation(db, "わーい", "あなたはすごいです。頑張りました！")
-# print("Added a new conversation.")
+# # # 2. add_conversationのテスト
+# # user.add_conversation(db, "わーい", "あなたはすごいです。頑張りました！")
+# # print("Added a new conversation.")
 
-# # 3. conversationsのテスト
-# recent_conversations = user.format_conversations(db)
-# print("Recent Conversations:\n", recent_conversations)
+# # # 3. conversationsのテスト
+# # recent_conversations = user.format_conversations(db)
+# # print("Recent Conversations:\n", recent_conversations)
 
-# user.create_question(db, "あなたはどこからきたの？")
-question = user.get_questions(db)
-print(f"question: {question.to_dict()}")
+# # user.create_question(db, "あなたはどこからきたの？")
+# question = user.get_question(db)
+# print(f"question: {question.to_dict()}")

@@ -176,10 +176,7 @@ class NewsGenerationAgent:
         # もしツール呼び出しが必要になったら、その処理を行う
         while run.status == "requires_action":
             tool_outputs = []
-            cnt = 0
             for tool_call in run.required_action.submit_tool_outputs.tool_calls:
-                cnt += 1
-                print ('count: ', cnt)
                 function_name = tool_call.function.name
                 arguments = json.loads(tool_call.function.arguments)
                 if function_name == "vector_db_article_search":

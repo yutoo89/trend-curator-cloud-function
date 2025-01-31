@@ -18,7 +18,7 @@ class Question:
         user_id: str,
         question_text: str,
         answer_text: str = "",
-        answer_status: str = ANSWER_STATUS["NO_QUESTION"],
+        answer_status: str = ANSWER_STATUS["IN_PROGRESS"],
         created: datetime = None,
     ):
         self.user_id = user_id
@@ -44,7 +44,7 @@ class Question:
             user_id=source.get("user_id"),
             question_text=source.get("question_text"),
             answer_text=source.get("answer_text", ""),
-            answer_status=source.get("answer_status", ANSWER_STATUS["NO_QUESTION"]),
+            answer_status=source.get("answer_status", ANSWER_STATUS["IN_PROGRESS"]),
             created=source.get("created", datetime.now()),
         )
 
@@ -54,6 +54,7 @@ class Question:
 
     def save(self, db: firestore.Client):
         doc_ref = Question.collection(db).document(self.user_id)
+        doc_ref.delete()
         doc_ref.set(self.to_dict())
 
     @staticmethod
@@ -62,10 +63,3 @@ class Question:
         if doc.exists:
             return Question.from_dict(doc.to_dict())
         return None
-
-    @staticmethod
-    def create(db: firestore.Client, user_id: str, question_text: str) -> "Question":
-
-        question = Question(user_id=user_id, question_text=question_text)
-        question.save(db)
-        return question
