@@ -1,10 +1,9 @@
 import json
-from typing import List, Tuple
 from openai import OpenAI
 from firebase_admin import firestore
 from datetime import datetime
 
-from user import User, ANSWER_STATUS 
+from user import User, ANSWER_STATUS
 from news import News
 from article import Article
 from agent.tools import (
@@ -16,7 +15,11 @@ GEMINI_MODEL = "gemini-1.5-flash"
 OPENAI_MODEL = "gpt-4o-mini"
 
 INAPPROPRIATE_KEYWORDS = [
-    "殺す", "自殺", "クレジットカード情報", "脅迫", "違法行為",
+    "殺す",
+    "自殺",
+    "クレジットカード情報",
+    "脅迫",
+    "違法行為",
 ]
 
 RESPONSE_FORMAT = {
@@ -44,6 +47,7 @@ INSTRUCTIONS = (
     "- 日時や企業名、情報源などの詳細は省略せず、具体的に伝えること\n"
     "- URLやソースコード、括弧書きなど自然に発話できない表現は避けること"
 )
+
 
 class AnswerAgent:
     def __init__(
@@ -92,16 +96,11 @@ class AnswerAgent:
         ]
         return "\n".join(prompt_lines)
 
-    def answer(self, user_id: str, question: str) -> Tuple[str, int]:
+    def answer(self, user_id: str, question: str) -> str:
         user_ref = User.collection(self.db)
         user = User.get(user_ref, user_id)
 
-        user.answer_status = ANSWER_STATUS['IN_PROGRESS']
-        user.save(user_ref)
-
         prompt = self.prompt(question=question, language_code=user.language_code)
-        print('prompt')
-        print(prompt)
         thread = self.client.beta.threads.create(
             messages=[
                 {
@@ -161,75 +160,13 @@ class AnswerAgent:
                     parsed_result = json.loads(json_text)
                     agent_answer = parsed_result["answer"]
                 else:
-                    agent_answer = "申し訳ありません、適切な回答を生成できませんでした。"
+                    raise RuntimeError("適切な回答を生成できませんでした。")
             else:
-                agent_answer = "申し訳ありません、回答が得られませんでした。"
+                raise RuntimeError("回答が得られませんでした。")
         else:
-            # 何らかのエラーや中断が発生した場合
-            agent_answer = "回答を生成できませんでした。別の質問をお試しください。"
+            raise RuntimeError("回答を生成できませんでした。別の質問をお試しください。")
 
         # スレッドのリソースを削除
         self.client.beta.threads.delete(thread.id)
 
-        # ステータスをANSWEREDにし、テキストを保存
-        user.answer_status = ANSWER_STATUS['ANSWERED']
-        user.answer_text = agent_answer
-        user.save(user_ref)
-
-        # 質問・回答の会話履歴を保存
-        user.add_conversation(
-            db=self.db,
-            user_message=question,
-            agent_message=agent_answer,
-        )
-
-        return agent_answer, user.daily_usage_count
-
-
-# import os
-# import google.generativeai as genai
-# import firebase_admin
-
-# # GenAI 初期化
-# genai.configure(api_key=os.environ["GENAI_API_KEY"])
-
-# # Firestore 初期化
-# if not firebase_admin._apps:
-#     firebase_admin.initialize_app()
-# db = firestore.client()
-
-# # Google Custom Search
-# google_custom_search_api_key = os.environ["GOOGLE_CUSTOM_SEARCH_API_KEY"]
-# google_search_cse_id = os.environ["GOOGLE_SEARCH_CSE_ID"]
-
-# if __name__ == "__main__":
-#     # ダミー初期化
-#     db = firestore.client()
-#     # web_searcher = WebSearcher(google_custom_search_api_key, google_search_cse_id)
-
-#     # インスタンス作成
-#     # client = OpenAI()
-#     # assistant = AnswerAgent.create_assistant(client, OPENAI_MODEL)
-#     # print(assistant)
-#     answer_agent = AnswerAgent(db=db)
-
-#     user_id = "test_user"
-#     user_collection = User.collection(db)
-#     user = User.get(user_collection, user_id)
-#     if not user:
-#         user = User(user_id)
-#         user.save(user_collection)
-#         print('create user')
-
-#     print("answer_status", user.answer_status)
-#     print("daily_usage_count", user.daily_usage_count)
-#     print("last_question_date", user.last_question_date)
-#     question = "さっきの質問覚えてる？"
-#     response = answer_agent.answer(user_id=user.id, question=question)
-
-#     # 結果を表示
-#     print("Assistant Response:\n", response)
-#     print("answer_status", user.answer_status)
-#     # 更新されてないdaily_usage_count
-#     print("daily_usage_count", user.daily_usage_count)
-#     print("last_question_date", user.last_question_date)
+        return agent_answer

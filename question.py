@@ -1,5 +1,6 @@
 from datetime import datetime
 from google.cloud import firestore
+from google.cloud.firestore import CollectionReference
 
 ANSWER_STATUS = {
     "NO_QUESTION": "質問なし",
@@ -52,14 +53,23 @@ class Question:
     def collection(db: firestore.Client):
         return db.collection(Question.COLLECTION)
 
-    def save(self, db: firestore.Client):
-        doc_ref = Question.collection(db).document(self.user_id)
-        doc_ref.delete()
+    def delete(self, ref: CollectionReference):
+        ref.document(self.user_id).delete()
+
+    def save(self, ref: CollectionReference):
+        doc_ref = ref.document(self.user_id)
         doc_ref.set(self.to_dict())
 
     @staticmethod
-    def get(db: firestore.Client, user_id: str) -> "Question":
-        doc = Question.collection(db).document(user_id).get()
+    def get(ref: CollectionReference, user_id: str) -> "Question":
+        doc = ref.document(user_id).get()
         if doc.exists:
             return Question.from_dict(doc.to_dict())
         return None
+
+    def update(self, ref: CollectionReference) -> bool:
+        doc_ref = ref.document(self.user_id)
+        if doc_ref.get().exists:
+            doc_ref.update(self.to_dict())
+            return True
+        return False

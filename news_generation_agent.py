@@ -154,7 +154,6 @@ class NewsGenerationAgent:
 
     def create(self, language_code: str) -> News:
         prompt = self.prompt(language_code=language_code)
-        print("prompt: ", prompt)
         # スレッドを作成
         thread = self.client.beta.threads.create(
             messages=[
@@ -217,14 +216,11 @@ class NewsGenerationAgent:
         # 最終メッセージから生成結果を取得
         if run.status == "completed":
             messages = self.client.beta.threads.messages.list(thread_id=thread.id)
-            print('messages: ', messages)
             assistant_messages = [m for m in messages.data if m.role == "assistant"]
-            print('assistant_messages: ', assistant_messages)
 
             # JSON Schema 出力を想定しているので、最後のアシスタントメッセージを JSON パースする
             if assistant_messages:
                 final_msg = assistant_messages[-1]
-                print("final_msg: ", final_msg)
                 json_text = next(
                     (c.text.value for c in final_msg.content if c.type == "text"), None
                 )
@@ -254,40 +250,3 @@ class NewsGenerationAgent:
         news_obj.save(news_collection)
 
         return news_obj
-
-
-# import os
-# import google.generativeai as genai
-# import firebase_admin
-
-# # GenAI 初期化
-# genai.configure(api_key=os.environ["GENAI_API_KEY"])
-
-# # Firestore 初期化
-# if not firebase_admin._apps:
-#     firebase_admin.initialize_app()
-# db = firestore.client()
-
-# # Google Custom Search
-# google_custom_search_api_key = os.environ["GOOGLE_CUSTOM_SEARCH_API_KEY"]
-# google_search_cse_id = os.environ["GOOGLE_SEARCH_CSE_ID"]
-
-# if __name__ == "__main__":
-#     # ダミー初期化
-#     db = firestore.client()
-#     web_searcher = WebSearcher(google_custom_search_api_key, google_search_cse_id)
-
-#     # インスタンス作成
-#     # client = OpenAI()
-#     # assistant = NewsGenerationAgent.create_assistant(client, OPENAI_MODEL)
-#     # print(assistant)
-#     article_assistant = NewsGenerationAgent(db=db, web_searcher=web_searcher)
-
-#     response = article_assistant.create("ja")
-
-#     # 結果を表示
-#     print("Assistant Response:\n", response)
-#     print("id", response.id)
-#     print("content:\n", response.content)
-#     print("sample_question:\n", response.sample_question)
-#     print("keyword:\n", response.keyword)

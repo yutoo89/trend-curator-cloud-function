@@ -5,13 +5,22 @@ from google.events.cloud import firestore as firestore_event
 import firebase_admin
 from firebase_admin import firestore
 import google.generativeai as genai
+from openai import OpenAI
 from rss_article_uploader import RssArticleUploader
 from article import Article
 from article_cleaner import ArticleCleaner
 from static_news_generator import StaticNewsGenerator
+from user import User
+from question import Question, ANSWER_STATUS
+from answer_agent import AnswerAgent
+from web_searcher import WebSearcher
+from news_generation_agent import NewsGenerationAgent
 
 # GenAI 初期化
 genai.configure(api_key=os.environ["GENAI_API_KEY"])
+
+# OpenAI 初期化
+client = OpenAI()
 
 # Firestore 初期化
 if not firebase_admin._apps:
@@ -36,6 +45,11 @@ def on_trend_update_started(cloud_event):
         static_news = generator.generate_news(language_code)
         print(f"[INFO] Created static news: {static_news.body}")
 
+    web_searcher = WebSearcher(google_custom_search_api_key, google_search_cse_id)
+    generator = NewsGenerationAgent(db=db, web_searcher=web_searcher)
+    for language_code in ["ja", "en"]:
+        news = generator.create(language_code)
+        print(f"[INFO] Created news - {language_code}: {news.content}")
 
 @functions_framework.cloud_event
 def on_article_created(cloud_event: CloudEvent) -> None:
@@ -58,3 +72,53 @@ def on_article_created(cloud_event: CloudEvent) -> None:
 
     print(f"[INFO] Article vectorize success: {article.title}")
 
+
+@functions_framework.cloud_event
+def on_question_created(cloud_event: CloudEvent) -> None:
+    """
+    questionsコレクションに新規ドキュメントが追加された時に実行
+    """
+    print(f"Triggered by creation of a document: {cloud_event['source']}")
+
+    doc_event_data = firestore_event.DocumentEventData()
+    doc_event_data._pb.ParseFromString(cloud_event.data)
+
+    doc_path = doc_event_data.value.name
+    user_id = doc_path.split("/")[-1]
+    print(f"user_id: {user_id}")
+
+    question_ref = Question.collection(db)
+    question = Question.get(question_ref, user_id)
+
+    user_ref = User.collection(db)
+    user = User.get(user_ref, user_id)
+
+    if user.daily_usage_count >= 3:
+        print(
+            f"[INFO] Skip Question answer creation : daily_usage_count - {user.daily_usage_count}"
+        )
+        return
+
+    agent_answer = ""
+    try:
+        answer_agent = AnswerAgent(db=db)
+        agent_answer = answer_agent.answer(
+            user_id=user_id, question=question.question_text
+        )
+        question.answer_text = agent_answer
+        question.answer_status = ANSWER_STATUS["READY"]
+        question.update(question_ref)
+    except Exception as e:
+        question.answer_text = ""
+        question.answer_status = ANSWER_STATUS["ERROR"]
+        question.update(question_ref)
+        print(f"[ERROR] Unexpected error: {e}")
+        return
+
+    user.add_conversation(
+        db=db,
+        user_message=question.question_text,
+        agent_message=agent_answer,
+    )
+
+    print(f"[INFO] Question answer creation success: {agent_answer}")
