@@ -88,12 +88,13 @@ class Article:
         try:
             body = ArticleContentFetcher.fetch(self.url)
             body = cleaner.clean_text(body)[: self.MAX_LENGTH]
-            clean_result = cleaner.llm_clean_text(body, self.title)
-            body = clean_result.get("clean_text", "")
-            keyword = clean_result.get("keyword", "")
+            # TODO: llmを使わずスクレイピングの精度を改善、articleのkeyword使ってないなら削除
+            # clean_result = cleaner.llm_clean_text(body, self.title)
+            # body = clean_result.get("clean_text", "")
+            # keyword = clean_result.get("keyword", "")
         except Exception as e:
             print(f"[ERROR] Failed to fetch or clean body for URL '{self.url}': {e}")
-        self.update(ref, {"body": body, "keyword": keyword})
+        self.update(ref, {"body": body, "keyword": ""})
 
     @staticmethod
     def from_dict(source):
@@ -148,48 +149,3 @@ class Article:
         doc_ref = ref.document(id)
         return doc_ref.get().exists
 
-    @staticmethod
-    def create_by_query(query: str) -> List['Article']:
-        google_custom_search_api_key = os.environ["GOOGLE_CUSTOM_SEARCH_API_KEY"]
-        google_search_cse_id = os.environ["GOOGLE_SEARCH_CSE_ID"]
-        searcher = WebSearcher(google_custom_search_api_key, google_search_cse_id)
-        content_fetcher = ArticleContentFetcher()
-        cleaner = ArticleCleaner('gemini-2.0-flash-exp')
-        summary_generator = ArticleSummaryGenerator('gemini-2.0-flash-exp')
-        ref = Article.collection(firestore.client())
-
-        # Perform the search and get the top 3 results
-        search_results = searcher.search(query, num_results=3)
-        articles = []
-
-        for result in search_results:
-            title = result["title"]
-            url = result["url"]
-
-            try:
-                # Fetch the article content
-                raw_content = content_fetcher.fetch(url)
-                if not raw_content:
-                    continue
-
-                # Clean the content
-                clean_result = cleaner.llm_clean_text(raw_content, title)
-                clean_text = clean_result.get("clean_text", "")
-                keyword = clean_result.get("keyword", "")
-                summary = summary_generator.generate_summary(title, clean_text)
-
-                # Create an Article instance
-                article = Article(
-                    title=title,
-                    summary=summary,
-                    url=url,
-                    body=clean_text,
-                    keyword=keyword,
-                )
-                article.save(ref)
-                articles.append(article)
-
-            except Exception as e:
-                print(f"Failed to process article at {url}: {e}")
-
-        return articles
