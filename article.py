@@ -1,12 +1,16 @@
+import os
+import re
+import json
 from datetime import datetime
+from typing import List
 from firebase_admin import firestore
 import google.generativeai as genai
 from google.cloud.firestore_v1.vector import Vector
 from datetime import datetime
-import json
-import re
 from article_content_fetcher import ArticleContentFetcher
 from article_cleaner import ArticleCleaner
+from article_summary_generator import ArticleSummaryGenerator
+from web_searcher import WebSearcher
 
 
 class Article:
@@ -84,12 +88,13 @@ class Article:
         try:
             body = ArticleContentFetcher.fetch(self.url)
             body = cleaner.clean_text(body)[: self.MAX_LENGTH]
-            clean_result = cleaner.llm_clean_text(body, self.title)
-            body = clean_result.get("clean_text", "")
-            keyword = clean_result.get("keyword", "")
+            # TODO: llmを使わずスクレイピングの精度を改善、articleのkeyword使ってないなら削除
+            # clean_result = cleaner.llm_clean_text(body, self.title)
+            # body = clean_result.get("clean_text", "")
+            # keyword = clean_result.get("keyword", "")
         except Exception as e:
             print(f"[ERROR] Failed to fetch or clean body for URL '{self.url}': {e}")
-        self.update(ref, {"body": body, "keyword": keyword})
+        self.update(ref, {"body": body, "keyword": ""})
 
     @staticmethod
     def from_dict(source):
@@ -143,3 +148,4 @@ class Article:
     def exists(ref, id):
         doc_ref = ref.document(id)
         return doc_ref.get().exists
+
