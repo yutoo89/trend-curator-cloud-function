@@ -93,7 +93,7 @@ def on_question_created(cloud_event: CloudEvent) -> None:
     user_ref = User.collection(db)
     user = User.get(user_ref, user_id)
 
-    if user.daily_usage_count >= 3:
+    if user.daily_usage_count >= 4:
         print(
             f"[INFO] Skip Question answer creation : daily_usage_count - {user.daily_usage_count}"
         )
