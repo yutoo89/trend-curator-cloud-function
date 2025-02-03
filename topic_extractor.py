@@ -22,14 +22,11 @@ class TopicExtractor:
         self.article_collection = article_collection
         self.news_collection = news_collection
 
-    def _fetch_keywords_of_past_week(self, language_code: str) -> List[str]:
-        """
-        過去1週間に生成したニュースのキーワードを収集して返す。
-        """
-        one_week_ago = datetime.now() - timedelta(days=7)
+    def _fetch_keywords_of_past_week(self) -> List[str]:
+        one_week_ago = datetime.now() - timedelta(days=3)
         query = self.news_collection.where(
             filter=FieldFilter("published", ">=", one_week_ago)
-        ).where(filter=FieldFilter("language_code", "==", language_code))
+        )
         docs = query.get()
 
         keywords = []
@@ -41,10 +38,6 @@ class TopicExtractor:
         return keywords
 
     def _get_recent_articles(self) -> List[Dict[str, str]]:
-        """
-        過去3日以内の記事を、Firestore の article_collection から取得する。
-        返り値は、各記事が { "title": <タイトル>, "body": <本文> } の辞書となる。
-        """
         cutoff_date = datetime.now() - timedelta(days=14)
         query = self.article_collection.where(
             filter=FieldFilter("published", ">=", cutoff_date)
@@ -67,7 +60,6 @@ class TopicExtractor:
         self,
         article_list: List[Dict[str, str]],
         exclude_topic_list: List[str],
-        language_code: str,
     ) -> str:
         # 除外キーワードに一致する記事を除外し、所定の文字列形式に変換
         filtered_articles = []
@@ -80,7 +72,6 @@ class TopicExtractor:
                     should_exclude = True
                     break
             if not should_exclude:
-                # filtered_articles.append(f"{title}:\n{body[:200]}...")
                 filtered_articles.append(title)
 
         # 除外キーワード一覧を分かりやすく結合
@@ -104,12 +95,11 @@ class TopicExtractor:
 
     def extract_topic(
         self,
-        language_code: str = "ja",
     ) -> dict:
-        exclude_topic_list = self._fetch_keywords_of_past_week(language_code)
+        exclude_topic_list = self._fetch_keywords_of_past_week()
         article_list = self._get_recent_articles()
 
-        prompt = self.create_prompt(article_list, exclude_topic_list, language_code)
+        prompt = self.create_prompt(article_list, exclude_topic_list)
 
         response = self.model.generate_content(
             prompt,
