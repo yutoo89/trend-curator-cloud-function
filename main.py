@@ -9,7 +9,6 @@ from openai import OpenAI
 from rss_article_uploader import RssArticleUploader
 from article import Article
 from article_cleaner import ArticleCleaner
-from static_news_generator import StaticNewsGenerator
 from user import User
 from question import Question, ANSWER_STATUS
 from answer_agent import AnswerAgent
@@ -40,16 +39,13 @@ def on_trend_update_started(cloud_event):
     uploader = RssArticleUploader("gemini-1.5-flash", db)
     uploader.bulk_upload()
 
-    generator = StaticNewsGenerator(db, "gemini-1.5-flash")
-    for language_code in ["ja", "en"]:
-        static_news = generator.generate_news(language_code)
-        print(f"[INFO] Created static news: {static_news.body}")
-
     web_searcher = WebSearcher(google_custom_search_api_key, google_search_cse_id)
     generator = NewsGenerationAgent(db=db, web_searcher=web_searcher)
+    topic = generator.extract_topic()
     for language_code in ["ja", "en"]:
-        news = generator.create(language_code)
+        news = generator.create(language_code, topic=topic)
         print(f"[INFO] Created news - {language_code}: {news.content}")
+
 
 @functions_framework.cloud_event
 def on_article_created(cloud_event: CloudEvent) -> None:

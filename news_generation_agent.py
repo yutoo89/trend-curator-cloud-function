@@ -11,14 +11,17 @@ from article_summary_generator import ArticleSummaryGenerator
 from web_searcher import WebSearcher
 from article import Article
 from news import News
+from topic_extractor import TopicExtractor
 from agent.tools import (
     NEWS_GENERATION_TOOLS,
     vector_db_article_search,
     get_article_title_url_list,
     get_article_from_title_url,
 )
+from user import LANGUAGE_CODE
 
 GEMINI_MODEL = "gemini-1.5-flash"
+TOPIC_GEMINI_MODEL = "gemini-1.5-pro"
 OPENAI_MODEL = "gpt-4o-mini"
 
 RESPONSE_FORMAT = {
@@ -30,9 +33,8 @@ RESPONSE_FORMAT = {
             "properties": {
                 "news_content": {"type": "string"},
                 "sample_question": {"type": "string"},
-                "keyword": {"type": "string"},
             },
-            "required": ["news_content", "sample_question", "keyword"],
+            "required": ["news_content", "sample_question"],
             "additionalProperties": False,
         },
         "strict": True,
@@ -51,11 +53,6 @@ INSTRUCTIONS = (
 
 
 class NewsGenerationAgent:
-    """
-    ニュースを生成するエージェント。過去に生成したニュースと被らないように
-    新しいニュース、質問例、キーワードを生成する。
-    """
-
     def __init__(
         self,
         db: firestore.Client,
@@ -69,6 +66,13 @@ class NewsGenerationAgent:
         self.article_cleaner = ArticleCleaner(GEMINI_MODEL)
         self.summary_generator = ArticleSummaryGenerator(GEMINI_MODEL)
         self.article_collection = Article.collection(self.db)
+        self.news_collection = News.get_collection(self.db)
+        self.extractor = TopicExtractor(
+            model_name=TOPIC_GEMINI_MODEL,
+            db=db,
+            article_collection=self.article_collection,
+            news_collection=self.news_collection,
+        )
         self.model = model
 
     @staticmethod
@@ -120,41 +124,48 @@ class NewsGenerationAgent:
 
         return result_strings
 
-    def prompt(self, language_code: str) -> str:
-        past_keywords = self._fetch_keywords_of_past_week(language_code)
-        joined_keywords = ", ".join(past_keywords) if past_keywords else "（なし）"
-        article_list = self._get_recent_articles()
-        # TODO: トピックを選ぶtoolとして切り出したい
+    def prompt(self, language_code: str, topic: str) -> str:
+        related_article_str = vector_db_article_search(
+            self.article_collection, query=topic
+        )
+
+        language_instructions = (
+            "- 質問の回答は、300文字以内で作成すること\n- アルファベット表記の固有名詞は日本における一般的な読みに変換すること\n  - 例: `ChatGPT` => `チャットジーピーティー`"
+            if language_code == LANGUAGE_CODE["JA"]
+            else "- 質問の回答は、500文字以内で作成すること"
+        )
+
         prompt_lines = [
-            "提供される記事一覧から、最も重要なトピックをひとつだけ選んでください。",
-            "次にそのトピックに関する情報をデータベースとウェブを用いて調査してください。",
-            "最後に、その調査結果を使用して質問に回答してください。",
+            "あなたはエンジニアに最新の技術情報を伝えるアナウンサーです。",
+            "下記のトピックに関する技術情報をデータベースとウェブを用いて調査してください。",
+            "その調査結果を使用して質問に回答してください。",
             "",
-            "質問: 本日のニュースを教えてください",
-            "",
+            f"トピック: {topic}",
+            "質問: ニュースを教えてください",
+            f"",
             "条件:",
-            "- 提供される記事一覧をから最も重要なトピックをひとつだけ選んで詳細を調査すること",
-            "- exceptsに重複・類似するトピックは選ばないこと",
-            "- その記事に関する20文字以下の短い質問例を作成すること",
-            "- URLやソースコード、括弧書きなど自然に発話できない表現は避けること",
-            "- 選んだトピックの中心となるキーワード（ツール名など）をひとつ作成すること",
+            "- 具体的な技術情報やツール名、企業名、日付、情報ソースなどの詳細情報を用いて具体的に回答すること",
+            "- トピックに関する20文字程度の短い質問例を作成すること",
+            "- URLやソースコード、括弧書きなどの自然に発話できない表現は避けること",
+            language_instructions,
             "",
             "出力フォーマット:",
             "- news_content: ニュースの原稿",
             "- sample_question: トピックに関する質問例",
-            "- keyword: トピックの中心的キーワード",
             "",
             f"出力言語: '{language_code}'",
-            f"除外トピック: '{joined_keywords}'",
             "",
-            "記事一覧:",
-            "\n\n".join(article_list),
+            "関連する記事:",
+            related_article_str,
         ]
         return "\n".join(prompt_lines)
 
-    def create(self, language_code: str) -> News:
-        prompt = self.prompt(language_code=language_code)
-        # スレッドを作成
+    def extract_topic(self) -> str:
+        return self.extractor.extract_topic()
+
+    def create(self, language_code: str, topic: str) -> News:
+        prompt = self.prompt(language_code=language_code, topic=topic)
+
         thread = self.client.beta.threads.create(
             messages=[
                 {
@@ -164,7 +175,6 @@ class NewsGenerationAgent:
             ]
         )
 
-        # アシスタントにリクエストを送信し、レスポンスを取得
         run = self.client.beta.threads.runs.create_and_poll(
             thread_id=thread.id,
             assistant_id=OPENAI_ASSISTANTS_ID,
@@ -172,7 +182,7 @@ class NewsGenerationAgent:
             tools=NEWS_GENERATION_TOOLS,
         )
 
-        # もしツール呼び出しが必要になったら、その処理を行う
+        # ツール呼び出しが必要な場合、その処理を実施
         while run.status == "requires_action":
             tool_outputs = []
             for tool_call in run.required_action.submit_tool_outputs.tool_calls:
@@ -218,7 +228,6 @@ class NewsGenerationAgent:
             messages = self.client.beta.threads.messages.list(thread_id=thread.id)
             assistant_messages = [m for m in messages.data if m.role == "assistant"]
 
-            # JSON Schema 出力を想定しているので、最後のアシスタントメッセージを JSON パースする
             if assistant_messages:
                 final_msg = assistant_messages[-1]
                 json_text = next(
@@ -228,7 +237,7 @@ class NewsGenerationAgent:
                     parsed_result = json.loads(json_text)
                     news_content = parsed_result["news_content"]
                     sample_question = parsed_result["sample_question"]
-                    keyword = parsed_result["keyword"]
+                    keyword = topic
                 else:
                     raise ValueError("Response does not contain valid JSON text.")
 
