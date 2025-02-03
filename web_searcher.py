@@ -2,7 +2,6 @@ from googleapiclient.discovery import build
 
 
 class WebSearcher:
-    SEARCH_MODIFIERS = ["release", "use", "tips"]
 
     def __init__(self, google_custom_search_api_key: str, google_search_cse_id: str):
         self.api_key = google_custom_search_api_key
