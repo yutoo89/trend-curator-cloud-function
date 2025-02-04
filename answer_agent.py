@@ -18,7 +18,7 @@ from agent.tools import (
 )
 
 GEMINI_MODEL = "gemini-1.5-flash"
-OPENAI_MODEL = "gpt-4o"
+OPENAI_MODEL = "gpt-4o-mini"
 
 INAPPROPRIATE_KEYWORDS = [
     "殺す",
@@ -44,7 +44,6 @@ RESPONSE_FORMAT = {
     },
 }
 
-# OPENAI_ASSISTANTS_ID = "asst_ot0MWbWKMAeRsWOmLX6QZ8cG"
 OPENAI_ASSISTANTS_ID = "asst_98ZfXoXuksYulqpkdLKfaRUF"
 
 INSTRUCTIONS = (
