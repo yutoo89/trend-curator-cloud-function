@@ -42,6 +42,44 @@ ANSWER_TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_article_title_url_list",
+            "description": "指定したクエリでウェブ検索を行い、検索結果のタイトルとURLのリストを返す",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "ウェブ検索に用いるクエリ文字列",
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_article_from_title_url",
+            "description": "タイトルとURLを渡すと、ページ内容を要約したテキストを返す",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "記事のタイトル"
+                    },
+                    "url": {
+                        "type": "string",
+                        "description": "記事のURL"
+                    },
+                },
+                "required": ["title", "url"],
+            },
+        },
+    },
 ]
 
 
