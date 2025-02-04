@@ -1,4 +1,5 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from google.cloud import firestore
 from google.cloud.firestore import CollectionReference
 from google.cloud.firestore_v1.base_query import FieldFilter
@@ -25,7 +26,7 @@ class User:
         self.language_code = language_code
         self.daily_usage_count = daily_usage_count
         self.last_question_date = (
-            last_question_date if last_question_date else datetime.now()
+            last_question_date if last_question_date else datetime.now(timezone.utc)
         )
 
     @staticmethod
@@ -33,7 +34,7 @@ class User:
         return User(
             id=source.get("id"),
             daily_usage_count=source.get("daily_usage_count", 0),
-            last_question_date=source.get("last_question_date", datetime.now()),
+            last_question_date=source.get("last_question_date", datetime.now(timezone.utc)),
             language_code=source.get("language_code"),
         )
 
@@ -84,15 +85,21 @@ class User:
         return doc_ref.get().exists
 
     def reset_usage_count(self, ref: CollectionReference) -> "User":
-        now = datetime.now()
-        if self.last_question_date.date() != now.date():
+        now = datetime.now(timezone.utc)
+        last_local = self.last_question_date
+
+        if self.language_code == LANGUAGE_CODE["JA"]:
+            now = now.astimezone(ZoneInfo("Asia/Tokyo"))
+            last_local = last_local.astimezone(ZoneInfo("Asia/Tokyo"))
+
+        if last_local.date() != now.date():
             self.daily_usage_count = 0
             self.last_question_date = now
             self.save(ref)
         return self
 
     def conversations(self, db):
-        since = datetime.now() - timedelta(hours=24)
+        since = datetime.now(timezone.utc) - timedelta(hours=24)
         ref = db.collection("users").document(self.id).collection("conversations")
         query = ref.where(filter=FieldFilter("timestamp", ">=", since))
         docs = query.stream()
@@ -106,7 +113,7 @@ class User:
         return "\n".join(formatted)
 
     def add_conversation(self, db, user_message: str, agent_message: str):
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         ref = db.collection("users").document(self.id).collection("conversations")
 
         user_timestamp = now - timedelta(seconds=10)
