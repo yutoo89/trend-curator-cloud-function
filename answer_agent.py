@@ -3,16 +3,22 @@ from openai import OpenAI
 from firebase_admin import firestore
 from datetime import datetime
 
-from user import User, ANSWER_STATUS
+from user import User
 from news import News
+from article_content_fetcher import ArticleContentFetcher
+from article_cleaner import ArticleCleaner
+from article_summary_generator import ArticleSummaryGenerator
+from web_searcher import WebSearcher
 from article import Article
 from agent.tools import (
     ANSWER_TOOLS,
     vector_db_article_search,
+    get_article_title_url_list,
+    get_article_from_title_url,
 )
 
 GEMINI_MODEL = "gemini-1.5-flash"
-OPENAI_MODEL = "gpt-4o-mini"
+OPENAI_MODEL = "gpt-4o"
 
 INAPPROPRIATE_KEYWORDS = [
     "殺す",
@@ -38,7 +44,8 @@ RESPONSE_FORMAT = {
     },
 }
 
-OPENAI_ASSISTANTS_ID = "asst_ot0MWbWKMAeRsWOmLX6QZ8cG"
+# OPENAI_ASSISTANTS_ID = "asst_ot0MWbWKMAeRsWOmLX6QZ8cG"
+OPENAI_ASSISTANTS_ID = "asst_98ZfXoXuksYulqpkdLKfaRUF"
 
 INSTRUCTIONS = (
     "あなたはエンジニアに最新の技術情報を提供するアナウンサーです。\n"
@@ -53,11 +60,16 @@ class AnswerAgent:
     def __init__(
         self,
         db: firestore.Client,
+        web_searcher: WebSearcher,
         model: str = OPENAI_MODEL,
     ):
         self.client = OpenAI()
         self.db = db
         self.model = model
+        self.web_searcher = web_searcher
+        self.content_fetcher = ArticleContentFetcher()
+        self.article_cleaner = ArticleCleaner(GEMINI_MODEL)
+        self.summary_generator = ArticleSummaryGenerator(GEMINI_MODEL)
         self.article_collection = Article.collection(self.db)
 
     @staticmethod
@@ -131,6 +143,20 @@ class AnswerAgent:
                 elif function_name == "get_recent_conversation_history":
                     conversation_text = user.format_conversations(self.db)
                     output = conversation_text
+                elif function_name == "get_article_title_url_list":
+                    output = get_article_title_url_list(
+                        web_searcher=self.web_searcher,
+                        query=arguments["query"],
+                    )
+                elif function_name == "get_article_from_title_url":
+                    output = get_article_from_title_url(
+                        content_fetcher=self.content_fetcher,
+                        article_cleaner=self.article_cleaner,
+                        summary_generator=self.summary_generator,
+                        article_collection=self.article_collection,
+                        title=arguments["title"],
+                        url=arguments["url"],
+                    )
                 else:
                     raise ValueError("Response does not contain valid JSON text.")
 

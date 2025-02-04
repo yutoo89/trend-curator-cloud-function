@@ -88,7 +88,7 @@ class NewsGenerationAgent:
         過去1週間に生成したニュースのキーワードを収集して返す。
         """
         one_week_ago = datetime.now() - timedelta(days=7)
-        ref = News.get_collection(self.db)
+        ref = self.news_collection
         query = ref.where(filter=FieldFilter("published", ">=", one_week_ago)).where(
             filter=FieldFilter("language_code", "==", language_code)
         )
@@ -255,7 +255,6 @@ class NewsGenerationAgent:
             keyword=keyword,
             language_code=language_code,
         )
-        news_collection = News.get_collection(self.db)
-        news_obj.save(news_collection)
+        news_obj.save(self.news_collection)
 
         return news_obj

@@ -97,7 +97,8 @@ def on_question_created(cloud_event: CloudEvent) -> None:
 
     agent_answer = ""
     try:
-        answer_agent = AnswerAgent(db=db)
+        web_searcher = WebSearcher(google_custom_search_api_key, google_search_cse_id)
+        answer_agent = AnswerAgent(db=db, web_searcher=web_searcher)
         agent_answer = answer_agent.answer(
             user_id=user_id, question=question.question_text
         )
